@@ -23,6 +23,30 @@ class FormatTag(models.Model):
 
 
 class Tournament(models.Model):
+    # --- NEW ENUMS (single-choice columns) ---
+    class Type(models.TextChoices):
+        MTT = "MTT", "MTT"
+        SATELLITE = "SAT", "Satellite"
+
+    class Game(models.TextChoices):
+        NLHE = "NLHE", "NLHE"
+        PLO = "PLO", "PLO"
+        PLO5 = "PLO5", "PLO5"
+        PLO8 = "PLO8", "PLO8"
+        MIXED = "MIXED", "Mixed"
+
+    class Speed(models.TextChoices):
+        REGULAR = "regular", "Regular"
+        TURBO = "turbo", "Turbo"
+        HYPER = "hyper", "Hyper"
+        DEEPSTACK = "deepstack", "Deepstack"
+
+    class TableSize(models.TextChoices):
+        FULL = "full", "Full Ring"
+        EIGHT = "8max", "8-max"
+        SIX = "6max", "6-max"
+        HU = "hu", "Heads-up"
+
     name = models.CharField(max_length=200)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="tournaments")
     buy_in = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -33,6 +57,22 @@ class Tournament(models.Model):
     start_time = models.DateTimeField()
     end_time = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    type = models.CharField(max_length=3, choices=Type.choices, default=Type.MTT)
+    game = models.CharField(max_length=5, choices=Game.choices, default=Game.NLHE)
+    speed = models.CharField(
+        max_length=10, choices=Speed.choices, default=Speed.REGULAR
+    )
+    table_size = models.CharField(
+        max_length=5, choices=TableSize.choices, default=TableSize.EIGHT
+    )
+
+    # satellite-specific (optional)
+    target_name = models.CharField(max_length=200, blank=True)  # e.g., "$215 Mystery"
+    seat_value = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+
     format_tags = models.ManyToManyField(
         FormatTag, related_name="tournaments", blank=True
     )
