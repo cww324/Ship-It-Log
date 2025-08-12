@@ -1,0 +1,11 @@
+[
+  {"model":"core.site","pk":1,"fields":{"name":"ACR","type":"online","notes":""}},
+  {"model":"core.sitet","pk":2,"fields":{"name":"Local Room","type":"live","notes":"Tuesday series"}},
+  {"model":"core.formattag","pk":1,"fields":{"label":"NL MTT"}},
+  {"model":"core.formattag","pk":2,"fields":{"label":"PKO"}},
+  {"model":"core.tournament","pk":1,"fields":{
+    "name":"$33 Monster Stack","site":1,"buy_in":"33.00","prize_won":"0.00",
+    "entries_used":1,"rebuys":0,"addons":0,
+    "start_time":"2025-08-11T12:00:00Z","end_time":null,"notes":""
+  }}
+]

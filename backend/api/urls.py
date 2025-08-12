@@ -1,12 +1,13 @@
+# backend/api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    HealthView,
     SiteViewSet,
     FormatTagViewSet,
     TournamentViewSet,
     SessionViewSet,
     SessionTournamentViewSet,
+    HealthView,  # optional; nice for a quick ping
 )
 
 router = DefaultRouter()
@@ -19,6 +20,6 @@ router.register(
 )
 
 urlpatterns = [
-    path("health/", HealthView.as_view(), name="health"),
     path("", include(router.urls)),
+    path("health/", HealthView.as_view(), name="health"),  # optional
 ]
