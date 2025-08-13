@@ -1,11 +1,13 @@
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from api.models import Session, SessionTournament
+from django.utils import timezone
+from api.models import Session, SessionTournament, Tournament
 from api.serializers import (
     SessionSerializer,
     SessionDetailSerializer,
     TournamentSerializer,
+    TournamentSlimSerializer,
 )
 
 
@@ -24,8 +26,8 @@ class SessionViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def perform_create(self, serializer):
-        # Save as the current user
-        serializer.save(user=self.request.user)
+        # Save as the current user with current timestamp
+        serializer.save(user=self.request.user, start_time=timezone.now())
 
     @action(detail=True, methods=["post"])
     def attach_tournaments(self, request, pk=None):
@@ -53,3 +55,86 @@ class SessionViewSet(viewsets.ModelViewSet):
         # return the updated session detail
         detail = SessionDetailSerializer(session, context={"request": request})
         return Response(detail.data)
+
+    @action(detail=True, methods=["post"])
+    def quick_tournament(self, request, pk=None):
+        """Quickly add tournament with just name, site, and buy_in"""
+        session = self.get_object()
+
+        # Validate required fields
+        name = request.data.get("name")
+        site = request.data.get("site")
+        buy_in = request.data.get("buy_in")
+
+        if not name:
+            return Response({"error": "Tournament name is required"}, status=400)
+        if not site:
+            return Response({"error": "Site is required"}, status=400)
+        if not buy_in:
+            return Response({"error": "Buy-in amount is required"}, status=400)
+
+        try:
+            buy_in = float(buy_in)
+            if buy_in < 0:
+                return Response({"error": "Buy-in cannot be negative"}, status=400)
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid buy-in amount"}, status=400)
+
+        # Minimal required fields for quick tournament creation
+        data = {
+            "name": name.strip(),
+            "site": int(site),
+            "buy_in": buy_in,
+            "start_time": timezone.now().isoformat(),
+            "prize_won": 0,
+            "entries_used": 1,
+            "rebuys": 0,
+            "addons": 0,
+            "notes": request.data.get("notes", ""),
+            # Set defaults for new fields
+            "type": request.data.get("type", "MTT"),
+            "game": request.data.get("game", "NLHE"),
+            "speed": request.data.get("speed", "regular"),
+            "table_size": request.data.get("table_size", "8max"),
+        }
+
+        # Create tournament
+        serializer = TournamentSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        tournament = serializer.save()
+
+        # Attach to session
+        SessionTournament.objects.create(session=session, tournament=tournament)
+
+        return Response(
+            {
+                "message": "Tournament added to session",
+                "tournament": TournamentSlimSerializer(tournament).data,
+            }
+        )
+
+    @action(detail=True, methods=["get"])
+    def active_tournaments(self, request, pk=None):
+        """Get only active tournaments (no end_time) for this session"""
+        session = self.get_object()
+        active = (
+            Tournament.objects.filter(
+                tournament_sessions__session=session, end_time__isnull=True
+            )
+            .select_related("site")
+            .prefetch_related("format_tags")
+        )
+        return Response(TournamentSlimSerializer(active, many=True).data)
+
+    @action(detail=True, methods=["get"])
+    def completed_tournaments(self, request, pk=None):
+        """Get only completed tournaments (has end_time) for this session"""
+        session = self.get_object()
+        completed = (
+            Tournament.objects.filter(
+                tournament_sessions__session=session, end_time__isnull=False
+            )
+            .select_related("site")
+            .prefetch_related("format_tags")
+        )
+        return Response(TournamentSlimSerializer(completed, many=True).data)

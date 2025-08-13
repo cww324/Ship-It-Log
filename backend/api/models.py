@@ -51,9 +51,12 @@ class Tournament(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="tournaments")
     buy_in = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     prize_won = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bounties_won = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0
+    )  # NEW: PKO bounties
     entries_used = models.IntegerField(default=1)  # 1 = no re-entry, 2+ = re-entries
     rebuys = models.IntegerField(default=0)
-    addons = models.IntegerField(default=0)
+    addons = models.IntegerField(default=0)  # Keep for legacy data, but won't use in UI
     start_time = models.DateTimeField()
     end_time = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
@@ -86,6 +89,9 @@ class Session(models.Model):
     start_time = models.DateTimeField()
     end_time = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-start_time"]  # Most recent sessions first
 
     def __str__(self):
         return f"Session #{self.id} by {self.user.username}"

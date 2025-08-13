@@ -35,12 +35,14 @@ class SessionTournamentSerializer(serializers.ModelSerializer):
 class SessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Session
-        fields = "__all__"
-        read_only_fields = ("user",)
+        fields = ["id", "user", "start_time", "end_time", "notes"]
+        read_only_fields = ("user", "start_time")  # start_time is set automatically
 
 
 # Frontend-friendly (for session detail)
 class TournamentSlimSerializer(serializers.ModelSerializer):
+    bounties_won = serializers.SerializerMethodField()
+
     class Meta:
         model = Tournament
         fields = [
@@ -49,6 +51,7 @@ class TournamentSlimSerializer(serializers.ModelSerializer):
             "site",
             "buy_in",
             "prize_won",
+            "bounties_won",  # NEW: PKO bounties
             "entries_used",
             "rebuys",
             "addons",
@@ -57,11 +60,15 @@ class TournamentSlimSerializer(serializers.ModelSerializer):
             "type",
             "game",
             "speed",
-            "table_size",  # NEW
+            "table_size",
             "target_name",
-            "seat_value",  # NEW (optional)
+            "seat_value",
             "format_tags",  # tag IDs
         ]
+
+    def get_bounties_won(self, obj):
+        # Handle case where bounties_won field doesn't exist yet (before migration)
+        return float(getattr(obj, "bounties_won", 0) or 0)
 
 
 class SessionDetailSerializer(serializers.ModelSerializer):
@@ -107,7 +114,7 @@ class SessionDetailSerializer(serializers.ModelSerializer):
 
     def get_total_prize(self, obj):
         return sum(
-            float(t.prize_won or 0)
+            float(t.prize_won or 0) + float(getattr(t, "bounties_won", 0) or 0)
             for t in Tournament.objects.filter(tournament_sessions__session=obj)
         )
 
