@@ -1,14 +1,11 @@
-# backend/api/urls.py
-from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    SiteViewSet,
-    FormatTagViewSet,
-    TournamentViewSet,
-    SessionViewSet,
-    SessionTournamentViewSet,
-    HealthView,  # optional; nice for a quick ping
-)
+from api.views.health_view import HealthView
+from api.views.site_view import SiteViewSet
+from api.views.format_tag_view import FormatTagViewSet
+from api.views.tournament_view import TournamentViewSet
+from api.views.session_view import SessionViewSet
+from api.views.session_tournament_view import SessionTournamentViewSet
+from django.urls import path
 
 router = DefaultRouter()
 router.register(r"sites", SiteViewSet, basename="site")
@@ -20,6 +17,6 @@ router.register(
 )
 
 urlpatterns = [
-    path("", include(router.urls)),
-    path("health/", HealthView.as_view(), name="health"),  # optional
+    path("health/", HealthView.as_view(), name="health"),
 ]
+urlpatterns += router.urls

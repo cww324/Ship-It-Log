@@ -1,74 +1,110 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { login } from "@/lib/api";
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { API_BASE } from '@/lib/api';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const search = useSearchParams();
-  const next = search.get("next") || "/sessions";
+  const r = useRouter();
+  const q = useSearchParams();
+  const next = q.get('next') || '/sessions';
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-
-  // If already logged in, bounce to next immediately
   useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem("token")) {
-      router.replace(next);
-    }
-  }, [router, next]);
+    // Already logged in? bounce to next
+    if (localStorage.getItem('token')) r.replace(next);
+  }, [r, next]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setError(null);
-    setLoading(true);
+
     try {
-      const token = await login(username, password);
-      localStorage.setItem("token", token);
-      router.replace(next);
-    } catch (err: any) {
-      setError(err?.message || "Invalid username or password");
+      const res = await fetch(`${API_BASE}/auth/token/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!res.ok) {
+        let msg = 'Login failed';
+        try {
+          const data = await res.json();
+          msg = data?.detail || JSON.stringify(data);
+        } catch {
+          const txt = await res.text().catch(() => '');
+          if (txt) msg = txt;
+        }
+        throw new Error(msg);
+      }
+
+      const data = await res.json();
+      if (!data?.token) throw new Error('No token returned');
+      localStorage.setItem('token', data.token);
+      r.replace(next);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   return (
-    <main className="min-h-screen grid place-items-center p-6">
-      <form onSubmit={onSubmit} className="w-full max-w-sm border rounded-2xl p-6 space-y-4 shadow-sm">
-        <h1 className="text-2xl font-semibold">Sign in</h1>
-        {error && (
-          <div className="rounded bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>
-        )}
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-gray-700">Username</span>
+    <main className="max-w-sm mx-auto p-6 space-y-4">
+      <h1 className="text-2xl font-semibold">Login</h1>
+
+      {error && (
+        <div className="rounded bg-red-50 text-red-700 px-3 py-2 text-sm">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={onSubmit} className="space-y-3">
+        <label className="block">
+          <div className="text-sm text-gray-700 mb-1">Username</div>
           <input
-            className="border px-3 py-2 rounded"
+            className="w-full border rounded p-2"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-gray-700">Password</span>
+
+        <label className="block">
+          <div className="text-sm text-gray-700 mb-1">Password</div>
           <input
             type="password"
-            className="border px-3 py-2 rounded"
+            className="w-full border rounded p-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
         </label>
+
         <button
-          disabled={loading}
-          className="w-full bg-black text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-60"
+          type="submit"
+          disabled={busy}
+          className="px-4 py-2 rounded bg-black text-white disabled:opacity-60 w-full"
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {busy ? 'Signing in…' : 'Sign In'}
         </button>
       </form>
+
+      <div className="text-center text-sm text-gray-600">
+        Don&apos;t have an account?{' '}
+        <Link
+          href={`/register${next !== '/sessions' ? `?next=${encodeURIComponent(next)}` : ''}`}
+          className="text-blue-600 hover:underline"
+        >
+          Create account
+        </Link>
+      </div>
     </main>
   );
 }
