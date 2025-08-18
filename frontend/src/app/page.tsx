@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
-import type { Tournament, Site, SessionListItem } from "@/types";
+import { exportToCSV, exportToJSON, exportSessionReport } from "@/lib/export";
+import type { Tournament, Site, SessionListItem, FormatTag } from "@/types";
 
 interface TournamentWithSession extends Tournament {
   session_id?: number;
@@ -20,6 +21,10 @@ export default function Home() {
   const [tournaments, setTournaments] = useState<TournamentWithSession[]>([]);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [formatTags, setFormatTags] = useState<FormatTag[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSite, setSelectedSite] = useState<number | null>(null);
+  const [selectedTag, setSelectedTag] = useState<number | null>(null);
 
   // Auth guard
   useEffect(() => {
@@ -36,16 +41,19 @@ export default function Home() {
     
     setLoading(true);
     try {
-      const [tournamentsRes, sessionsRes, sitesRes] = await Promise.all([
+      const [tournamentsRes, sessionsRes, sitesRes, tagsRes] = await Promise.all([
         apiGet<TournamentWithSession[]>('/tournaments/'),
         apiGet<{results?: SessionListItem[]} | SessionListItem[]>('/sessions/'),
-        apiGet<Site[]>('/sites/')
+        apiGet<Site[]>('/sites/'),
+        apiGet<{results?: FormatTag[]} | FormatTag[]>('/format-tags/')
       ]);
       
       setTournaments(Array.isArray(tournamentsRes) ? tournamentsRes : []);
       const sessionsList: SessionListItem[] = Array.isArray(sessionsRes) ? sessionsRes : sessionsRes?.results ?? [];
       setSessions(sessionsList);
       setSites(Array.isArray(sitesRes) ? sitesRes : []);
+      const tagsList: FormatTag[] = Array.isArray(tagsRes) ? tagsRes : tagsRes?.results ?? [];
+      setFormatTags(tagsList);
     } catch (error) {
       console.error('Failed to load data:', error);
       setTournaments([]);
@@ -113,25 +121,46 @@ export default function Home() {
 
       {/* Navigation Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {[
-            { id: 'dashboard', label: 'Dashboard' },
-            { id: 'sessions', label: 'Sessions' },
-            { id: 'analytics', label: 'Analytics' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabType)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+        <div className="flex items-center justify-between">
+          <nav className="-mb-px flex space-x-8">
+            {[
+              { id: 'dashboard', label: 'Dashboard' },
+              { id: 'sessions', label: 'Sessions' },
+              { id: 'analytics', label: 'Analytics' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+          
+          {/* Export Dropdown */}
+          <div className="relative">
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleExport(e.target.value as 'csv' | 'json' | 'sessions');
+                  e.target.value = ''; // Reset selection
+                }
+              }}
+              className="border rounded-lg px-3 py-2 text-sm bg-white"
+              defaultValue=""
             >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+              <option value="" disabled>Export Data</option>
+              <option value="csv">Export Tournaments (CSV)</option>
+              <option value="json">Export All Data (JSON)</option>
+              <option value="sessions">Export Sessions (CSV)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Tab Content */}
