@@ -8,7 +8,7 @@ import { API_BASE } from '@/lib/api';
 export default function LoginPage() {
   const r = useRouter();
   const q = useSearchParams();
-  const next = q.get('next') || '/sessions';
+  const next = q.get('next') || '/dashboard';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

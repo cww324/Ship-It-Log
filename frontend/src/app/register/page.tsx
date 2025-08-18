@@ -8,7 +8,7 @@ import { API_BASE } from '@/lib/api';
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') || '/sessions';
+  const next = searchParams.get('next') || '/dashboard';
   
   const [formData, setFormData] = useState({
     username: '',
@@ -181,7 +181,7 @@ export default function RegisterPage() {
       <div className="text-center text-sm text-gray-600">
         Already have an account?{' '}
         <Link 
-          href={`/login${next !== '/sessions' ? `?next=${encodeURIComponent(next)}` : ''}`}
+          href={`/login${next !== '/dashboard' ? `?next=${encodeURIComponent(next)}` : ''}`}
           className="text-blue-600 hover:underline"
         >
           Sign in
