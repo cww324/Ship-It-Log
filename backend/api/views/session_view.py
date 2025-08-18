@@ -138,3 +138,42 @@ class SessionViewSet(viewsets.ModelViewSet):
             .prefetch_related("format_tags")
         )
         return Response(TournamentSlimSerializer(completed, many=True).data)
+
+    @action(detail=False, methods=["post"])
+    def quick_session(self, request):
+        """Find or create a session for the given date"""
+        from rest_framework import status
+        from datetime import datetime
+        
+        date_str = request.data.get("date")
+        if not date_str:
+            return Response(
+                {"error": "Date is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Parse the date
+            date_obj = datetime.fromisoformat(date_str).date()
+            
+            # Look for existing session on this date
+            existing_session = Session.objects.filter(
+                user=request.user,
+                start_time__date=date_obj
+            ).first()
+            
+            if existing_session:
+                return Response({"id": existing_session.id, "existing": True})
+            
+            # Create new session
+            session = Session.objects.create(
+                user=request.user,
+                start_time=timezone.now(),
+                notes=f"Auto-created session for {date_str}"
+            )
+            
+            return Response({"id": session.id, "existing": False}, status=status.HTTP_201_CREATED)
+            
+        except ValueError:
+            return Response(
+                {"error": "Invalid date format"}, status=status.HTTP_400_BAD_REQUEST
+            )
