@@ -17,7 +17,7 @@ export default function SessionsPage() {
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!token) {
-      router.replace("/login?next=/sessions");
+      router.replace("/login?next=/dashboard");
     } else {
       setReady(true);
     }
