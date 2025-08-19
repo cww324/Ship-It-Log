@@ -1,0 +1,14 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.6.0
+  hooks:
+    - id: check-added-large-files
+      args: ["--maxkb=2000"]
+    - id: detect-private-key
+- repo: local
+  hooks:
+    - id: block-venv
+      name: block committing venv folders
+      entry: bash -c 'git diff --cached --name-only | grep -E "(^|/)venv/|(^|/)\.venv/" && { echo "Refusing to commit venv"; exit 1; } || exit 0'
+      language: system
+      pass_filenames: false
