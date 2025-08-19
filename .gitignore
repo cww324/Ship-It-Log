@@ -8,3 +8,8 @@ __pycache__/
 # Ignore local dev DB
 backend/db.sqlite3
 *.sqlite3
+
+# Ignore local dev DB
+backend/db.sqlite3
+*.sqlite3
+*.sqlite3-journal
