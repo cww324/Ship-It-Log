@@ -13,3 +13,8 @@ backend/db.sqlite3
 backend/db.sqlite3
 *.sqlite3
 *.sqlite3-journal
+
+backend/.venv/
+backend/venv/
+.venv/
+venv/
