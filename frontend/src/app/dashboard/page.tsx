@@ -1,359 +1,521 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { apiGet, apiPost } from '@/lib/api';
-import type { Tournament, Site, FormatTag } from '@/types';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { apiGet, apiPost } from "@/lib/api";
+import { exportToCSV, exportToJSON, exportSessionReport } from "@/lib/export";
+import type { Tournament, Site, SessionListItem, FormatTag } from "@/types";
 
 interface TournamentWithSession extends Tournament {
   session_id?: number;
   session_start_time?: string;
 }
 
-interface QuickBuyIn {
-  amount: number;
-  label: string;
-  common: boolean;
-}
-
-const COMMON_BUYINS: QuickBuyIn[] = [
-  { amount: 11, label: '$11', common: true },
-  { amount: 22, label: '$22', common: true },
-  { amount: 33, label: '$33', common: true },
-  { amount: 55, label: '$55', common: true },
-  { amount: 66, label: '$66', common: true },
-  { amount: 109, label: '$109', common: true },
-  { amount: 215, label: '$215', common: true },
-  { amount: 530, label: '$530', common: false },
-  { amount: 1050, label: '$1050', common: false },
-];
+type TabType = 'dashboard' | 'sessions' | 'analytics';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [tournaments, setTournaments] = useState<TournamentWithSession[]>([]);
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedBuyIn, setSelectedBuyIn] = useState<number | null>(null);
+  const [formatTags, setFormatTags] = useState<FormatTag[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSite, setSelectedSite] = useState<number | null>(null);
+  const [selectedTag, setSelectedTag] = useState<number | null>(null);
 
   // Auth guard
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!token) {
-      router.replace('/login?next=/dashboard');
+      router.replace("/login");
     } else {
       setReady(true);
     }
   }, [router]);
 
   const loadData = useCallback(async () => {
+    if (!ready) return;
+    
     setLoading(true);
     try {
-      console.log('Loading dashboard data...');
-      
-      // Load all tournaments across all sessions
-      const [tournamentsRes, sitesRes] = await Promise.all([
-        apiGet<TournamentWithSession[]>('/tournaments/'),
-        apiGet<Site[]>('/sites/')
+      const [tournamentsRes, sessionsRes, sitesRes, tagsRes] = await Promise.all([
+        apiGet<{results?: TournamentWithSession[]} | TournamentWithSession[]>('/tournaments/'),
+        apiGet<{results?: SessionListItem[]} | SessionListItem[]>('/sessions/'),
+        apiGet<{results?: Site[]} | Site[]>('/sites/'),
+        apiGet<{results?: FormatTag[]} | FormatTag[]>('/format-tags/')
       ]);
       
-      console.log('Tournaments response:', tournamentsRes);
-      console.log('Sites response:', sitesRes);
-      
-      // Ensure we always set an array
-      setTournaments(Array.isArray(tournamentsRes) ? tournamentsRes : []);
-      setSites(Array.isArray(sitesRes) ? sitesRes : []);
-      
-      console.log('Dashboard data loaded successfully');
+      const tournamentsList: TournamentWithSession[] = Array.isArray(tournamentsRes) ? tournamentsRes : tournamentsRes?.results ?? [];
+      setTournaments(tournamentsList);
+      const sessionsList: SessionListItem[] = Array.isArray(sessionsRes) ? sessionsRes : sessionsRes?.results ?? [];
+      setSessions(sessionsList);
+      const sitesList: Site[] = Array.isArray(sitesRes) ? sitesRes : sitesRes?.results ?? [];
+      setSites(sitesList);
+      const tagsList: FormatTag[] = Array.isArray(tagsRes) ? tagsRes : tagsRes?.results ?? [];
+      setFormatTags(tagsList);
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-      // Set empty arrays on error
+      console.error('Failed to load data:', error);
       setTournaments([]);
+      setSessions([]);
       setSites([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ready]);
 
   useEffect(() => {
-    if (ready) loadData();
-  }, [ready, loadData]);
+    loadData();
+  }, [loadData]);
 
-  const handleQuickAdd = async (buyIn: number) => {
-    setSelectedBuyIn(buyIn);
-    setShowModal(true);
-  };
-
-  const createQuickTournament = async (buyIn: number, siteName: string = 'PokerStars') => {
-    try {
-      console.log('Creating quick tournament with buy-in:', buyIn);
-      
-      // Find or create a session for today
-      const today = new Date().toISOString().split('T')[0];
-      console.log('Creating session for date:', today);
-      
-      const sessionRes = await apiPost<{id: number}>('/sessions/quick_session/', {
-        date: today
-      });
-      console.log('Session created/found:', sessionRes);
-
-      // Create tournament with minimal data
-      const site = sites.find(s => s.name === siteName) || sites[0];
-      if (!site) {
-        throw new Error('No sites available. Please add a site first.');
-      }
-      
-      const tournamentData = {
-        name: `$${buyIn} Tournament`,
-        site: site.id,
-        buy_in: buyIn,
-        start_time: new Date().toISOString(),
-        type: 'MTT',
-        game: 'NLHE',
-        speed: 'regular',
-        table_size: '8max'
-      };
-      console.log('Creating tournament with data:', tournamentData);
-
-      const tournament = await apiPost<{id: number}>('/tournaments/', tournamentData);
-      console.log('Tournament created:', tournament);
-      
-      // Link to session
-      const linkData = {
-        session: sessionRes.id,
-        tournament: tournament.id
-      };
-      console.log('Linking tournament to session:', linkData);
-      
-      await apiPost('/session-tournaments/', linkData);
-      console.log('Tournament linked to session successfully');
-
-      // Refresh data
-      await loadData();
-      setShowModal(false);
-      setSelectedBuyIn(null);
-      
-      console.log('Quick tournament creation completed successfully');
-    } catch (error) {
-      console.error('Failed to create quick tournament:', error);
-      alert(`Failed to create tournament: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+  const computeSessionNet = (s: SessionListItem): number => {
+    if (typeof s.net === "number") return s.net;
+    if (typeof s.totals?.net === "number") return s.totals.net;
+    const totalPrize = Number(s.total_prize ?? 0);
+    const totalBuyins = Number(s.total_buyins ?? 0);
+    return totalPrize - totalBuyins;
   };
 
   const calculateStats = () => {
-    // Ensure tournaments is always an array
     const tournamentsArray = Array.isArray(tournaments) ? tournaments : [];
-    
     const totalBuyins = tournamentsArray.reduce((sum, t) => sum + Number(t.buy_in || 0), 0);
     const totalPrizes = tournamentsArray.reduce((sum, t) => sum + Number(t.prize_won || 0) + Number(t.bounties_won || 0), 0);
     const net = totalPrizes - totalBuyins;
     const roi = totalBuyins > 0 ? ((net / totalBuyins) * 100) : 0;
     
-    return { totalBuyins, totalPrizes, net, roi, count: tournamentsArray.length };
+    // Calculate win rate (tournaments with prize > 0)
+    const wins = tournamentsArray.filter(t => Number(t.prize_won || 0) > 0).length;
+    const winRate = tournamentsArray.length > 0 ? (wins / tournamentsArray.length) * 100 : 0;
+    
+    return { 
+      totalBuyins, 
+      totalPrizes, 
+      net, 
+      roi, 
+      count: tournamentsArray.length,
+      wins,
+      winRate,
+      sessionsCount: sessions.length
+    };
   };
 
   const stats = calculateStats();
 
-  if (!ready) return <div className="p-6">Redirecting to login…</div>;
+  const calculateOnlineVsLive = () => {
+    const tournamentsArray = Array.isArray(tournaments) ? tournaments : [];
+    
+    let onlineProfit = 0;
+    let liveProfit = 0;
+    let onlineCount = 0;
+    let liveCount = 0;
+    
+    tournamentsArray.forEach(tournament => {
+      const buyIn = Number(tournament.buy_in || 0);
+      const prize = Number(tournament.prize_won || 0);
+      const bounties = Number(tournament.bounties_won || 0);
+      const net = prize + bounties - buyIn;
+      
+      // Find the site to determine if it's online or live
+      const site = sites.find(s => s.id === tournament.site);
+      if (site?.type === 'live') {
+        liveProfit += net;
+        liveCount++;
+      } else {
+        onlineProfit += net;
+        onlineCount++;
+      }
+    });
+    
+    return { onlineProfit, liveProfit, onlineCount, liveCount };
+  };
+
+  const calculateSessionExtremes = () => {
+    let bestSession = 0;
+    let worstSession = 0;
+    
+    sessions.forEach(session => {
+      const net = computeSessionNet(session);
+      if (net > bestSession) bestSession = net;
+      if (net < worstSession) worstSession = net;
+    });
+    
+    return { bestSession, worstSession };
+  };
+
+  const onlineVsLive = calculateOnlineVsLive();
+  const sessionExtremes = calculateSessionExtremes();
+
+  const handleExport = (type: 'csv' | 'json' | 'sessions') => {
+    try {
+      // Convert SessionListItem[] to Session[] for export compatibility
+      const sessionsForExport = sessions.map(session => ({
+        ...session,
+        tournaments: [] as Tournament[], // Empty array since we don't have full tournament objects in list view
+        total_buyins: session.total_buyins || 0,
+        total_prize: session.total_prize || 0,
+        net: session.net || 0,
+        start_time: session.start_time,
+        end_time: session.end_time
+      }));
+
+      const exportData = {
+        tournaments,
+        sessions: sessionsForExport,
+        summary: {
+          totalTournaments: stats.count,
+          totalBuyins: stats.totalBuyins,
+          totalPrizes: stats.totalPrizes,
+          netProfit: stats.net,
+          roi: stats.roi,
+          winRate: stats.winRate
+        }
+      };
+      
+      switch (type) {
+        case 'csv':
+          exportToCSV(exportData);
+          break;
+        case 'json':
+          exportToJSON(exportData);
+          break;
+        case 'sessions':
+          exportSessionReport(sessionsForExport);
+          break;
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  if (!ready) return <div className="p-6">Loading...</div>;
 
   return (
     <main className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Header with Quick Stats */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
           <h1 className="text-3xl font-bold">Poker Dashboard</h1>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            + Add Tournament
-          </button>
+          <p className="text-gray-600">Track your poker sessions and analyze performance</p>
         </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold">{stats.count}</div>
-            <div className="text-gray-600">Tournaments</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">
-              ${stats.totalBuyins.toLocaleString()}
-            </div>
-            <div className="text-gray-600">Total Buy-ins</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              ${stats.totalPrizes.toLocaleString()}
-            </div>
-            <div className="text-gray-600">Total Prizes</div>
-          </div>
-          <div className="text-center">
-            <div className={`text-2xl font-bold ${stats.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${stats.net.toLocaleString()}
-            </div>
-            <div className="text-gray-600">Net ({stats.roi.toFixed(1)}% ROI)</div>
-          </div>
-        </div>
+        <button
+          onClick={() => router.push('/sessions/new')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium"
+        >
+          + Add Session
+        </button>
       </div>
 
-      {/* Quick Add Buttons */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold mb-4">Quick Add Tournament</h2>
-        <div className="flex flex-wrap gap-2">
-          {COMMON_BUYINS.filter(b => b.common).map(buyIn => (
-            <button
-              key={buyIn.amount}
-              onClick={() => handleQuickAdd(buyIn.amount)}
-              className="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded text-sm font-medium"
+      {/* Navigation Tabs */}
+      <div className="border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <nav className="-mb-px flex space-x-8">
+            {[
+              { id: 'dashboard', label: 'Dashboard' },
+              { id: 'sessions', label: 'Sessions' },
+              { id: 'analytics', label: 'Analytics' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+          
+          {/* Export Dropdown */}
+          <div className="relative">
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleExport(e.target.value as 'csv' | 'json' | 'sessions');
+                  e.target.value = ''; // Reset selection
+                }
+              }}
+              className="border rounded-lg px-3 py-2 text-sm bg-white"
+              defaultValue=""
             >
-              + {buyIn.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded text-sm font-medium border-2 border-dashed border-gray-300"
-          >
-            + Custom
-          </button>
+              <option value="" disabled>Export Data</option>
+              <option value="csv">Export Tournaments (CSV)</option>
+              <option value="json">Export All Data (JSON)</option>
+              <option value="sessions">Export Sessions (CSV)</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Tournament Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold">Recent Tournaments</h2>
-        </div>
-        
-        {loading ? (
-          <div className="p-6">Loading tournaments...</div>
-        ) : tournaments.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No tournaments yet. Click a quick add button above to get started!
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tournament
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Site
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Buy-in
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Prize
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Bounties
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Net
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {(Array.isArray(tournaments) ? tournaments : []).slice(0, 50).map((tournament) => {
-                  const net = Number(tournament.prize_won || 0) + Number(tournament.bounties_won || 0) - Number(tournament.buy_in || 0);
-                  return (
-                    <tr key={tournament.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(tournament.start_time).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{tournament.name}</div>
-                        <div className="text-sm text-gray-500">{tournament.game} • {tournament.speed}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {sites.find(s => s.id === tournament.site)?.name || 'Unknown'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${Number(tournament.buy_in || 0).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${Number(tournament.prize_won || 0).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${Number(tournament.bounties_won || 0).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-medium ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ${net.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button className="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
-                        <button className="text-red-600 hover:text-red-900">Delete</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Tab Content */}
+      {loading ? (
+        <div className="p-8 text-center text-gray-500">Loading...</div>
+      ) : (
+        <>
+          {/* Dashboard Tab */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-lg border">
+                  <div className="text-2xl font-bold text-green-600">+${stats.net.toLocaleString()}</div>
+                  <div className="text-sm text-gray-600">Total Profit</div>
+                  <div className="text-xs text-gray-500">{stats.roi.toFixed(1)}% ROI</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
+                  <div className="text-sm text-gray-600">Win Rate</div>
+                  <div className="text-xs text-gray-500">{stats.wins} wins</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <div className="text-2xl font-bold">${(stats.totalPrizes / Math.max(1, stats.count)).toFixed(0)}</div>
+                  <div className="text-sm text-gray-600">Avg Cash-out</div>
+                  <div className="text-xs text-gray-500">per tournament</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <div className="text-2xl font-bold">{stats.sessionsCount}</div>
+                  <div className="text-sm text-gray-600">Sessions</div>
+                  <div className="text-xs text-gray-500">{stats.count} tournaments</div>
+                </div>
+              </div>
 
-      {/* Quick Add Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
-              {selectedBuyIn ? `Add $${selectedBuyIn} Tournament` : 'Add Tournament'}
-            </h3>
-            
-            {selectedBuyIn ? (
-              <div className="space-y-4">
-                <p>Quick add a ${selectedBuyIn} tournament?</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => createQuickTournament(selectedBuyIn)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    Add Tournament
-                  </button>
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                  >
-                    Cancel
-                  </button>
+              {/* Performance Comparison */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-4 rounded-lg border">
+                  <h3 className="text-lg font-semibold mb-3">Online vs Live</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Online ({onlineVsLive.onlineCount} tournaments)</span>
+                      <span className={`font-medium ${onlineVsLive.onlineProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {onlineVsLive.onlineProfit >= 0 ? '+' : ''}${onlineVsLive.onlineProfit.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Live ({onlineVsLive.liveCount} tournaments)</span>
+                      <span className={`font-medium ${onlineVsLive.liveProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {onlineVsLive.liveProfit >= 0 ? '+' : ''}${onlineVsLive.liveProfit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <h3 className="text-lg font-semibold mb-3">Session Extremes</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Best Win</span>
+                      <span className="text-green-600 font-medium">+${sessionExtremes.bestSession.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Worst Loss</span>
+                      <span className="text-red-600 font-medium">${sessionExtremes.worstSession.toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <p>Choose a buy-in amount:</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {COMMON_BUYINS.map(buyIn => (
-                    <button
-                      key={buyIn.amount}
-                      onClick={() => createQuickTournament(buyIn.amount)}
-                      className="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded text-sm"
-                    >
-                      {buyIn.label}
-                    </button>
-                  ))}
+
+              {/* Recent Sessions */}
+              <div className="bg-white rounded-lg border">
+                <div className="px-4 py-3 border-b">
+                  <h3 className="text-lg font-semibold">Recent Sessions</h3>
                 </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="w-full bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Game</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Buy-in</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cash-out</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {sessions.slice(0, 5).map((session) => {
+                        const net = computeSessionNet(session);
+                        const sessionTournaments = Array.isArray(session.tournaments) ? session.tournaments : [];
+                        const tournamentCount = sessionTournaments.length;
+                        const gameDisplay = tournamentCount > 0 ? `${tournamentCount} Tournaments` : 'No Tournaments';
+                        
+                        return (
+                          <tr key={session.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm">
+                              {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                Online
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">{gameDisplay}</td>
+                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_buyins || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_prize || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              <span className={`font-medium ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              {session.start_time && session.end_time
+                                ? `${Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / (1000 * 60 * 60))}h`
+                                : 'N/A'
+                              }
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
+
+          {/* Sessions Tab */}
+          {activeTab === 'sessions' && (
+            <div className="space-y-4">
+              {/* Search and Filters */}
+              <div className="flex space-x-4">
+                <input
+                  type="text"
+                  placeholder="Search sessions..."
+                  className="flex-1 border rounded-lg px-3 py-2"
+                />
+                <select className="border rounded-lg px-3 py-2">
+                  <option>All Types</option>
+                  <option>Online</option>
+                  <option>Live</option>
+                </select>
+                <select className="border rounded-lg px-3 py-2">
+                  <option>All Games</option>
+                  <option>NLHE</option>
+                  <option>PLO</option>
+                </select>
+              </div>
+
+              {/* Sessions Table */}
+              <div className="bg-white rounded-lg border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Game</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Buy-in</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cash-out</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Duration</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {sessions.map((session) => {
+                        const net = computeSessionNet(session);
+                        const sessionTournaments = Array.isArray(session.tournaments) ? session.tournaments : [];
+                        const tournamentCount = sessionTournaments.length;
+                        
+                        // For now, show tournament count and basic info since tournaments might be IDs
+                        const gameDisplay = tournamentCount > 0 ? `${tournamentCount} Tournaments` : 'No Tournaments';
+                        const siteDisplay = 'Various Sites'; // Will be properly calculated once we get full tournament objects
+                        const sessionType = 'Online' as const; // Default for now
+                        
+                        return (
+                          <tr key={session.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm">
+                              {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {sessionType}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">{gameDisplay}</td>
+                            <td className="px-4 py-3 text-sm">{siteDisplay}</td>
+                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_buyins || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_prize || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              <span className={`font-medium ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              {session.start_time && session.end_time
+                                ? `${Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / (1000 * 60 * 60))}h`
+                                : 'N/A'
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => router.push(`/sessions/${session.id}`)}
+                                className="text-blue-600 hover:text-blue-900 text-sm"
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Analytics Tab */}
+          {activeTab === 'analytics' && (
+            <div className="space-y-6">
+              {/* Chart Placeholder */}
+              <div className="bg-white p-6 rounded-lg border">
+                <h3 className="text-lg font-semibold mb-4">Cumulative Profit Over Time</h3>
+                <div className="h-64 bg-gray-100 rounded flex items-center justify-center">
+                  <div className="text-gray-500">Chart will be implemented here</div>
+                </div>
+              </div>
+
+              {/* Analytics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-4 rounded-lg border">
+                  <h4 className="font-semibold mb-2">Monthly Performance</h4>
+                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
+                    <div className="text-gray-500 text-sm">Bar Chart</div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <h4 className="font-semibold mb-2">Win/Loss Distribution</h4>
+                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
+                    <div className="text-gray-500 text-sm">Pie Chart</div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <h4 className="font-semibold mb-2">Session Length vs Profit</h4>
+                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
+                    <div className="text-gray-500 text-sm">Scatter Plot</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Analytics Features List */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">Analytics View Features:</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Line chart: Cumulative profit over time + session profits</li>
+                  <li>• Bar chart: Monthly performance breakdown</li>
+                  <li>• Pie chart: Win/Loss/Break-even session distribution</li>
+                  <li>• Metrics cards: Best session, Worst session, Longest session</li>
+                  <li>• Color coding: Green = wins, Red = losses, Blue = neutral</li>
+                </ul>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </main>
   );

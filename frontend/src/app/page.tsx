@@ -1,465 +1,312 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPost } from "@/lib/api";
-import { exportToCSV, exportToJSON, exportSessionReport } from "@/lib/export";
-import type { Tournament, Site, SessionListItem, FormatTag } from "@/types";
+import Link from "next/link";
 
-interface TournamentWithSession extends Tournament {
-  session_id?: number;
-  session_start_time?: string;
-}
-
-type TabType = 'dashboard' | 'sessions' | 'analytics';
-
-export default function Home() {
+export default function LandingPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [tournaments, setTournaments] = useState<TournamentWithSession[]>([]);
-  const [sessions, setSessions] = useState<SessionListItem[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
-  const [formatTags, setFormatTags] = useState<FormatTag[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSite, setSelectedSite] = useState<number | null>(null);
-  const [selectedTag, setSelectedTag] = useState<number | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Auth guard
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) {
-      router.replace("/login");
+    if (token) {
+      setIsAuthenticated(true);
+      router.replace("/dashboard");
     } else {
-      setReady(true);
+      setIsAuthenticated(false);
     }
   }, [router]);
 
-  const loadData = useCallback(async () => {
-    if (!ready) return;
-    
-    setLoading(true);
-    try {
-      const [tournamentsRes, sessionsRes, sitesRes, tagsRes] = await Promise.all([
-        apiGet<{results?: TournamentWithSession[]} | TournamentWithSession[]>('/tournaments/'),
-        apiGet<{results?: SessionListItem[]} | SessionListItem[]>('/sessions/'),
-        apiGet<{results?: Site[]} | Site[]>('/sites/'),
-        apiGet<{results?: FormatTag[]} | FormatTag[]>('/format-tags/')
-      ]);
-      
-      const tournamentsList: TournamentWithSession[] = Array.isArray(tournamentsRes) ? tournamentsRes : tournamentsRes?.results ?? [];
-      setTournaments(tournamentsList);
-      const sessionsList: SessionListItem[] = Array.isArray(sessionsRes) ? sessionsRes : sessionsRes?.results ?? [];
-      setSessions(sessionsList);
-      const sitesList: Site[] = Array.isArray(sitesRes) ? sitesRes : sitesRes?.results ?? [];
-      setSites(sitesList);
-      const tagsList: FormatTag[] = Array.isArray(tagsRes) ? tagsRes : tagsRes?.results ?? [];
-      setFormatTags(tagsList);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      setTournaments([]);
-      setSessions([]);
-      setSites([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [ready]);
+  // Show loading while checking authentication
+  if (isAuthenticated === null) {
+    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
+        <p className="mt-2 text-blue-200">Loading...</p>
+      </div>
+    </div>;
+  }
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const calculateStats = () => {
-    const tournamentsArray = Array.isArray(tournaments) ? tournaments : [];
-    const totalBuyins = tournamentsArray.reduce((sum, t) => sum + Number(t.buy_in || 0), 0);
-    const totalPrizes = tournamentsArray.reduce((sum, t) => sum + Number(t.prize_won || 0) + Number(t.bounties_won || 0), 0);
-    const net = totalPrizes - totalBuyins;
-    const roi = totalBuyins > 0 ? ((net / totalBuyins) * 100) : 0;
-    
-    // Calculate win rate (tournaments with prize > 0)
-    const wins = tournamentsArray.filter(t => Number(t.prize_won || 0) > 0).length;
-    const winRate = tournamentsArray.length > 0 ? (wins / tournamentsArray.length) * 100 : 0;
-    
-    return { 
-      totalBuyins, 
-      totalPrizes, 
-      net, 
-      roi, 
-      count: tournamentsArray.length,
-      wins,
-      winRate,
-      sessionsCount: sessions.length
-    };
-  };
-
-  const stats = calculateStats();
-
-  const handleExport = (type: 'csv' | 'json' | 'sessions') => {
-    try {
-      const exportData = {
-        tournaments,
-        sessions,
-        summary: {
-          totalTournaments: stats.count,
-          totalBuyins: stats.totalBuyins,
-          totalPrizes: stats.totalPrizes,
-          netProfit: stats.net,
-          roi: stats.roi,
-          winRate: stats.winRate
-        }
-      };
-      
-      switch (type) {
-        case 'csv':
-          exportToCSV(exportData);
-          break;
-        case 'json':
-          exportToJSON(exportData);
-          break;
-        case 'sessions':
-          exportSessionReport(sessions);
-          break;
-      }
-    } catch (error) {
-      console.error('Export failed:', error);
-    }
-  };
-
-  const computeSessionNet = (s: SessionListItem): number => {
-    if (typeof s.net === "number") return s.net;
-    if (typeof s.totals?.net === "number") return s.totals.net;
-    const totalPrize = Number(s.total_prize ?? 0);
-    const totalBuyins = Number(s.total_buyins ?? 0);
-    return totalPrize - totalBuyins;
-  };
-
-  if (!ready) return <div className="p-6">Loading...</div>;
+  // Show redirect message if authenticated
+  if (isAuthenticated) {
+    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
+        <p className="mt-2 text-blue-200">Redirecting to dashboard...</p>
+      </div>
+    </div>;
+  }
 
   return (
-    <main className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Poker Tracker</h1>
-          <p className="text-gray-600">Track your poker sessions and analyze performance</p>
-        </div>
-        <button
-          onClick={() => router.push('/sessions/new')}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium"
-        >
-          + Add Session
-        </button>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <nav className="-mb-px flex space-x-8">
-            {[
-              { id: 'dashboard', label: 'Dashboard' },
-              { id: 'sessions', label: 'Sessions' },
-              { id: 'analytics', label: 'Analytics' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-          
-          {/* Export Dropdown */}
-          <div className="relative">
-            <select
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleExport(e.target.value as 'csv' | 'json' | 'sessions');
-                  e.target.value = ''; // Reset selection
-                }
-              }}
-              className="border rounded-lg px-3 py-2 text-sm bg-white"
-              defaultValue=""
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      {/* Navigation */}
+      <nav className="relative z-10 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">SL</span>
+            </div>
+            <span className="text-white text-xl font-bold">ShipIt Log</span>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Link 
+              href="/login" 
+              className="text-gray-300 hover:text-white transition-colors duration-200"
             >
-              <option value="" disabled>Export Data</option>
-              <option value="csv">Export Tournaments (CSV)</option>
-              <option value="json">Export All Data (JSON)</option>
-              <option value="sessions">Export Sessions (CSV)</option>
-            </select>
+              Sign In
+            </Link>
+            <Link 
+              href="/register" 
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              Get Started
+            </Link>
           </div>
         </div>
-      </div>
+      </nav>
 
-      {/* Tab Content */}
-      {loading ? (
-        <div className="p-8 text-center text-gray-500">Loading...</div>
-      ) : (
-        <>
-          {/* Dashboard Tab */}
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-lg border">
-                  <div className="text-2xl font-bold text-green-600">+${stats.net.toLocaleString()}</div>
-                  <div className="text-sm text-gray-600">Total Profit</div>
-                  <div className="text-xs text-gray-500">{stats.roi.toFixed(1)}% ROI</div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
-                  <div className="text-sm text-gray-600">Win Rate</div>
-                  <div className="text-xs text-gray-500">{stats.wins} wins</div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <div className="text-2xl font-bold">${(stats.totalPrizes / Math.max(1, stats.count)).toFixed(0)}</div>
-                  <div className="text-sm text-gray-600">Avg Cash-out</div>
-                  <div className="text-xs text-gray-500">per tournament</div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <div className="text-2xl font-bold">{stats.sessionsCount}</div>
-                  <div className="text-sm text-gray-600">Sessions</div>
-                  <div className="text-xs text-gray-500">{stats.count} tournaments</div>
+      {/* Hero Section */}
+      <section className="relative px-6 py-20">
+        <div className="max-w-7xl mx-auto text-center">
+          <div className="mb-8">
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+              Track Your Poker
+              <span className="block bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                Journey
+              </span>
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+              Professional poker session tracking with advanced analytics, 
+              real-time tournament management, and comprehensive performance insights.
+            </p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
+            <Link 
+              href="/register" 
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+            >
+              Start Tracking Free
+            </Link>
+            <Link 
+              href="/login" 
+              className="border-2 border-gray-400 text-gray-300 px-8 py-4 rounded-xl font-semibold text-lg hover:border-white hover:text-white transition-all duration-200"
+            >
+              Sign In
+            </Link>
+          </div>
+
+          {/* Hero Image/Demo */}
+          <div className="relative max-w-5xl mx-auto">
+            <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+              <div className="bg-gray-800 px-6 py-4 border-b border-gray-700">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="ml-4 text-gray-400 text-sm">ShipIt Log Dashboard</span>
                 </div>
               </div>
-
-              {/* Performance Comparison */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-4 rounded-lg border">
-                  <h3 className="text-lg font-semibold mb-3">Online vs Live</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>Online</span>
-                      <span className="text-green-600 font-medium">+$650</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Live</span>
-                      <span className="text-green-600 font-medium">+$400</span>
-                    </div>
+              <div className="p-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white">
+                    <div className="text-3xl font-bold">+$12,450</div>
+                    <div className="text-green-100">Total Profit</div>
+                    <div className="text-sm text-green-200">24.3% ROI</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
+                    <div className="text-3xl font-bold">67.2%</div>
+                    <div className="text-blue-100">Win Rate</div>
+                    <div className="text-sm text-blue-200">156 wins</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
+                    <div className="text-3xl font-bold">89</div>
+                    <div className="text-purple-100">Sessions</div>
+                    <div className="text-sm text-purple-200">232 tournaments</div>
                   </div>
                 </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <h3 className="text-lg font-semibold mb-3">Session Extremes</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>Best Win</span>
-                      <span className="text-green-600 font-medium">+$250</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Worst Loss</span>
-                      <span className="text-red-600 font-medium">-$75</span>
-                    </div>
+                <div className="bg-gray-700 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-semibold">Recent Sessions</h3>
+                    <span className="text-green-400 text-sm">Live Session Active</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Recent Sessions */}
-              <div className="bg-white rounded-lg border">
-                <div className="px-4 py-3 border-b">
-                  <h3 className="text-lg font-semibold">Recent Sessions</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Game</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Buy-in</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cash-out</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Duration</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {sessions.slice(0, 5).map((session) => {
-                        const net = computeSessionNet(session);
-                        const sessionTournaments = Array.isArray(session.tournaments) ? session.tournaments : [];
-                        const tournamentCount = sessionTournaments.length;
-                        const gameDisplay = tournamentCount > 0 ? `${tournamentCount} Tournaments` : 'No Tournaments';
-                        
-                        return (
-                          <tr key={session.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm">
-                              {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                Online
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm">{gameDisplay}</td>
-                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_buyins || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_prize || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-right">
-                              <span className={`font-medium ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right">
-                              {session.start_time && session.end_time
-                                ? `${Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / (1000 * 60 * 60))}h`
-                                : 'N/A'
-                              }
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="space-y-3">
+                    {[
+                      { date: "Today", profit: "+$450", tournaments: "3 tournaments" },
+                      { date: "Yesterday", profit: "-$120", tournaments: "2 tournaments" },
+                      { date: "Dec 15", profit: "+$890", tournaments: "5 tournaments" },
+                    ].map((session, i) => (
+                      <div key={i} className="flex items-center justify-between py-2 border-b border-gray-600 last:border-b-0">
+                        <div>
+                          <div className="text-white font-medium">{session.date}</div>
+                          <div className="text-gray-400 text-sm">{session.tournaments}</div>
+                        </div>
+                        <div className={`font-semibold ${session.profit.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                          {session.profit}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      </section>
 
-          {/* Sessions Tab */}
-          {activeTab === 'sessions' && (
-            <div className="space-y-4">
-              {/* Search and Filters */}
-              <div className="flex space-x-4">
-                <input
-                  type="text"
-                  placeholder="Search sessions..."
-                  className="flex-1 border rounded-lg px-3 py-2"
-                />
-                <select className="border rounded-lg px-3 py-2">
-                  <option>All Types</option>
-                  <option>Online</option>
-                  <option>Live</option>
-                </select>
-                <select className="border rounded-lg px-3 py-2">
-                  <option>All Games</option>
-                  <option>NLHE</option>
-                  <option>PLO</option>
-                </select>
-              </div>
+      {/* Features Section */}
+      <section className="relative px-6 py-20 bg-black/20">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Everything You Need to
+              <span className="block bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                Dominate the Tables
+              </span>
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Professional-grade tools designed for serious poker players who want to track, 
+              analyze, and improve their game.
+            </p>
+          </div>
 
-              {/* Sessions Table */}
-              <div className="bg-white rounded-lg border overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Game</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Buy-in</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cash-out</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Duration</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {sessions.map((session) => {
-                        const net = computeSessionNet(session);
-                        const sessionTournaments = Array.isArray(session.tournaments) ? session.tournaments : [];
-                        const tournamentCount = sessionTournaments.length;
-                        
-                        // For now, show tournament count and basic info since tournaments might be IDs
-                        const gameDisplay = tournamentCount > 0 ? `${tournamentCount} Tournaments` : 'No Tournaments';
-                        const siteDisplay = 'Various Sites'; // Will be properly calculated once we get full tournament objects
-                        const sessionType = 'Online'; // Default for now
-                        
-                        return (
-                          <tr key={session.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm">
-                              {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                sessionType === 'Live' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                              }`}>
-                                {sessionType}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm">{gameDisplay}</td>
-                            <td className="px-4 py-3 text-sm">{siteDisplay}</td>
-                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_buyins || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-right">${Number(session.total_prize || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-right">
-                              <span className={`font-medium ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right">
-                              {session.start_time && session.end_time
-                                ? `${Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / (1000 * 60 * 60))}h`
-                                : 'N/A'
-                              }
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => router.push(`/sessions/${session.id}`)}
-                                className="text-blue-600 hover:text-blue-900 text-sm"
-                              >
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              {
+                icon: "📊",
+                title: "Advanced Analytics",
+                description: "Deep dive into your performance with comprehensive charts, ROI tracking, and variance analysis."
+              },
+              {
+                icon: "⚡",
+                title: "Real-Time Tracking",
+                description: "Log tournaments instantly during live sessions with quick-add buttons and mobile optimization."
+              },
+              {
+                icon: "🎯",
+                title: "Session Management",
+                description: "Organize tournaments into sessions, track live games, and manage your poker schedule efficiently."
+              },
+              {
+                icon: "📈",
+                title: "Performance Insights",
+                description: "Identify your most profitable games, sites, and time periods with detailed breakdowns."
+              },
+              {
+                icon: "💰",
+                title: "Bankroll Tracking",
+                description: "Monitor your poker bankroll with profit/loss tracking, ROI calculations, and goal setting."
+              },
+              {
+                icon: "🏆",
+                title: "Tournament History",
+                description: "Complete tournament database with filtering, search, and export capabilities for tax reporting."
+              }
+            ].map((feature, i) => (
+              <div key={i} className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-8 border border-gray-700 hover:border-gray-600 transition-all duration-200 hover:transform hover:-translate-y-1">
+                <div className="text-4xl mb-4">{feature.icon}</div>
+                <h3 className="text-xl font-bold text-white mb-4">{feature.title}</h3>
+                <p className="text-gray-300 leading-relaxed">{feature.description}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Future Leaderboard Section */}
+      <section className="relative px-6 py-20">
+        <div className="max-w-7xl mx-auto text-center">
+          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-12 border border-gray-700">
+            <div className="mb-8">
+              <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+                Coming Soon:
+                <span className="block bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                  Global Leaderboards
+                </span>
+              </h2>
+              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+                Compete with poker players worldwide. Compare your stats, climb the rankings, 
+                and showcase your skills on our global leaderboards.
+              </p>
             </div>
-          )}
-
-          {/* Analytics Tab */}
-          {activeTab === 'analytics' && (
-            <div className="space-y-6">
-              {/* Chart Placeholder */}
-              <div className="bg-white p-6 rounded-lg border">
-                <h3 className="text-lg font-semibold mb-4">Cumulative Profit Over Time</h3>
-                <div className="h-64 bg-gray-100 rounded flex items-center justify-center">
-                  <div className="text-gray-500">Chart will be implemented here</div>
-                </div>
-              </div>
-
-              {/* Analytics Grid */}
+            
+            <div className="bg-black/30 rounded-2xl p-8 max-w-4xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-semibold mb-2">Monthly Performance</h4>
-                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">Bar Chart</div>
-                  </div>
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🥇</div>
+                  <div className="text-yellow-400 font-bold text-lg">ROI Leaders</div>
+                  <div className="text-gray-400">Top performing players</div>
                 </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-semibold mb-2">Win/Loss Distribution</h4>
-                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">Pie Chart</div>
-                  </div>
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🔥</div>
+                  <div className="text-orange-400 font-bold text-lg">Hot Streaks</div>
+                  <div className="text-gray-400">Current winning runs</div>
                 </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-semibold mb-2">Session Length vs Profit</h4>
-                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">Scatter Plot</div>
-                  </div>
+                <div className="text-center">
+                  <div className="text-3xl mb-2">💎</div>
+                  <div className="text-blue-400 font-bold text-lg">Volume Kings</div>
+                  <div className="text-gray-400">Most active grinders</div>
                 </div>
-              </div>
-
-              {/* Analytics Features List */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-semibold mb-2">Analytics View Features:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Line chart: Cumulative profit over time + session profits</li>
-                  <li>• Bar chart: Monthly performance breakdown</li>
-                  <li>• Pie chart: Win/Loss/Break-even session distribution</li>
-                  <li>• Metrics cards: Best session, Worst session, Longest session</li>
-                  <li>• Color coding: Green = wins, Red = losses, Blue = neutral</li>
-                </ul>
               </div>
             </div>
-          )}
-        </>
-      )}
-    </main>
+            
+            <div className="mt-8">
+              <Link 
+                href="/register" 
+                className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-yellow-600 hover:to-orange-700 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+              >
+                Join the Waitlist
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="relative px-6 py-20 bg-gradient-to-r from-blue-600 to-purple-700">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+            Ready to Level Up Your Game?
+          </h2>
+          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+            Join thousands of poker players who are already using ShipIt Log to track their sessions 
+            and maximize their profits.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link 
+              href="/register" 
+              className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+            >
+              Start Free Today
+            </Link>
+            <Link 
+              href="/login" 
+              className="border-2 border-white text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all duration-200"
+            >
+              Already Have an Account?
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-black/40 px-6 py-12">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between">
+            <div className="flex items-center space-x-2 mb-4 md:mb-0">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">SL</span>
+              </div>
+              <span className="text-white text-xl font-bold">ShipIt Log</span>
+            </div>
+            <div className="text-gray-400 text-center md:text-right">
+              <p>&copy; 2024 ShipIt Log. All rights reserved.</p>
+              <p className="text-sm mt-1">Professional poker session tracking made simple.</p>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
