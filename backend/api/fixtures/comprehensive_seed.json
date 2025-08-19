@@ -1,0 +1,224 @@
+[
+  {
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+      "username": "TourneyGrinder",
+      "email": "tourneygrinder@example.com",
+      "first_name": "Tourney",
+      "last_name": "Grinder",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 2,
+    "fields": {
+      "username": "MTTShark",
+      "email": "mttshark@example.com",
+      "first_name": "MTT",
+      "last_name": "Shark",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 3,
+    "fields": {
+      "username": "CircuitPro",
+      "email": "circuitpro@example.com",
+      "first_name": "Circuit",
+      "last_name": "Pro",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 4,
+    "fields": {
+      "username": "MixedPlayer1",
+      "email": "mixedplayer1@example.com",
+      "first_name": "Mixed",
+      "last_name": "Player",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 5,
+    "fields": {
+      "username": "CashTourneyPro",
+      "email": "cashtourneypro@example.com",
+      "first_name": "CashTourney",
+      "last_name": "Pro",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 6,
+    "fields": {
+      "username": "WeekendWarrior",
+      "email": "weekendwarrior@example.com",
+      "first_name": "Weekend",
+      "last_name": "Warrior",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 7,
+    "fields": {
+      "username": "SatelliteKing",
+      "email": "satelliteking@example.com",
+      "first_name": "Satellite",
+      "last_name": "King",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 8,
+    "fields": {
+      "username": "LiveLocalPro",
+      "email": "livelocalpro@example.com",
+      "first_name": "LiveLocal",
+      "last_name": "Pro",
+      "password": "pbkdf2_sha256$600000$test$test",
+      "is_superuser": false,
+      "is_staff": false,
+      "is_active": true
+    }
+  },
+  {
+    "model": "api.site",
+    "pk": 1,
+    "fields": {
+      "name": "PokerStars",
+      "type": "online",
+      "notes": ""
+    }
+  },
+  {
+    "model": "api.site",
+    "pk": 2,
+    "fields": {
+      "name": "GGPoker",
+      "type": "online",
+      "notes": ""
+    }
+  },
+  {
+    "model": "api.site",
+    "pk": 3,
+    "fields": {
+      "name": "888poker",
+      "type": "online",
+      "notes": ""
+    }
+  },
+  {
+    "model": "api.site",
+    "pk": 4,
+    "fields": {
+      "name": "partypoker",
+      "type": "online",
+      "notes": ""
+    }
+  },
+  {
+    "model": "api.site",
+    "pk": 5,
+    "fields": {
+      "name": "Harrah's Cherokee",
+      "type": "live",
+      "notes": "Cherokee, NC - WSOP Circuit venue"
+    }
+  },
+  {
+    "model": "api.site",
+    "pk": 6,
+    "fields": {
+      "name": "Aria Casino",
+      "type": "live",
+      "notes": "Las Vegas, NV"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 1,
+    "fields": {
+      "label": "NLH"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 2,
+    "fields": {
+      "label": "PLO"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 3,
+    "fields": {
+      "label": "Turbo"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 4,
+    "fields": {
+      "label": "PKO"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 5,
+    "fields": {
+      "label": "Online"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 6,
+    "fields": {
+      "label": "Live"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 7,
+    "fields": {
+      "label": "6-max"
+    }
+  },
+  {
+    "model": "api.formattag",
+    "pk": 8,
+    "fields": {
+      "label": "9-max"
+    }
+  }
+]

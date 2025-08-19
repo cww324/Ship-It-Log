@@ -20,8 +20,8 @@ class SessionViewSet(viewsets.ModelViewSet):
         return Session.objects.filter(user=self.request.user).select_related("user")
 
     def get_serializer_class(self):
-        # Detail returns totals + tournaments
-        if self.action in ["retrieve"]:
+        # Both list and detail return totals + tournaments for frontend compatibility
+        if self.action in ["retrieve", "list"]:
             return SessionDetailSerializer
         return super().get_serializer_class()
 
@@ -144,7 +144,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         """Find or create a session for the given date"""
         from rest_framework import status
         from datetime import datetime
-        
+
         date_str = request.data.get("date")
         if not date_str:
             return Response(
@@ -154,25 +154,26 @@ class SessionViewSet(viewsets.ModelViewSet):
         try:
             # Parse the date
             date_obj = datetime.fromisoformat(date_str).date()
-            
+
             # Look for existing session on this date
             existing_session = Session.objects.filter(
-                user=request.user,
-                start_time__date=date_obj
+                user=request.user, start_time__date=date_obj
             ).first()
-            
+
             if existing_session:
                 return Response({"id": existing_session.id, "existing": True})
-            
+
             # Create new session
             session = Session.objects.create(
                 user=request.user,
                 start_time=timezone.now(),
-                notes=f"Auto-created session for {date_str}"
+                notes=f"Auto-created session for {date_str}",
             )
-            
-            return Response({"id": session.id, "existing": False}, status=status.HTTP_201_CREATED)
-            
+
+            return Response(
+                {"id": session.id, "existing": False}, status=status.HTTP_201_CREATED
+            )
+
         except ValueError:
             return Response(
                 {"error": "Invalid date format"}, status=status.HTTP_400_BAD_REQUEST
