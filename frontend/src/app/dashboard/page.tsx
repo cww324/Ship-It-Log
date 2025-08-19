@@ -11,7 +11,7 @@ interface TournamentWithSession extends Tournament {
   session_start_time?: string;
 }
 
-type TabType = 'dashboard' | 'sessions' | 'analytics';
+type TabType = 'dashboard' | 'sessions';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -213,8 +213,7 @@ export default function DashboardPage() {
           <nav className="-mb-px flex space-x-8">
             {[
               { id: 'dashboard', label: 'Dashboard' },
-              { id: 'sessions', label: 'Sessions' },
-              { id: 'analytics', label: 'Analytics' }
+              { id: 'sessions', label: 'Sessions' }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -228,6 +227,12 @@ export default function DashboardPage() {
                 {tab.label}
               </button>
             ))}
+            <button
+              onClick={() => router.push('/analytics')}
+              className="py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm"
+            >
+              Analytics
+            </button>
           </nav>
           
           {/* Export Dropdown */}
@@ -469,52 +474,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Analytics Tab */}
-          {activeTab === 'analytics' && (
-            <div className="space-y-6">
-              {/* Chart Placeholder */}
-              <div className="bg-white p-6 rounded-lg border">
-                <h3 className="text-lg font-semibold mb-4">Cumulative Profit Over Time</h3>
-                <div className="h-64 bg-gray-100 rounded flex items-center justify-center">
-                  <div className="text-gray-500">Chart will be implemented here</div>
-                </div>
-              </div>
-
-              {/* Analytics Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-semibold mb-2">Monthly Performance</h4>
-                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">Bar Chart</div>
-                  </div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-semibold mb-2">Win/Loss Distribution</h4>
-                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">Pie Chart</div>
-                  </div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-semibold mb-2">Session Length vs Profit</h4>
-                  <div className="h-32 bg-gray-100 rounded flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">Scatter Plot</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Analytics Features List */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-semibold mb-2">Analytics View Features:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Line chart: Cumulative profit over time + session profits</li>
-                  <li>• Bar chart: Monthly performance breakdown</li>
-                  <li>• Pie chart: Win/Loss/Break-even session distribution</li>
-                  <li>• Metrics cards: Best session, Worst session, Longest session</li>
-                  <li>• Color coding: Green = wins, Red = losses, Blue = neutral</li>
-                </ul>
-              </div>
-            </div>
-          )}
         </>
       )}
     </main>

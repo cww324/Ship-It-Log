@@ -5,3 +5,5 @@ django-filter==25.1
 djangorestframework==3.16.1
 pillow==11.3.0
 sqlparse==0.5.3
+pandas==2.2.0
+numpy==1.26.0
