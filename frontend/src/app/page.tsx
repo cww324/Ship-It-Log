@@ -42,16 +42,18 @@ export default function Home() {
     setLoading(true);
     try {
       const [tournamentsRes, sessionsRes, sitesRes, tagsRes] = await Promise.all([
-        apiGet<TournamentWithSession[]>('/tournaments/'),
+        apiGet<{results?: TournamentWithSession[]} | TournamentWithSession[]>('/tournaments/'),
         apiGet<{results?: SessionListItem[]} | SessionListItem[]>('/sessions/'),
-        apiGet<Site[]>('/sites/'),
+        apiGet<{results?: Site[]} | Site[]>('/sites/'),
         apiGet<{results?: FormatTag[]} | FormatTag[]>('/format-tags/')
       ]);
       
-      setTournaments(Array.isArray(tournamentsRes) ? tournamentsRes : []);
+      const tournamentsList: TournamentWithSession[] = Array.isArray(tournamentsRes) ? tournamentsRes : tournamentsRes?.results ?? [];
+      setTournaments(tournamentsList);
       const sessionsList: SessionListItem[] = Array.isArray(sessionsRes) ? sessionsRes : sessionsRes?.results ?? [];
       setSessions(sessionsList);
-      setSites(Array.isArray(sitesRes) ? sitesRes : []);
+      const sitesList: Site[] = Array.isArray(sitesRes) ? sitesRes : sitesRes?.results ?? [];
+      setSites(sitesList);
       const tagsList: FormatTag[] = Array.isArray(tagsRes) ? tagsRes : tagsRes?.results ?? [];
       setFormatTags(tagsList);
     } catch (error) {
@@ -92,6 +94,37 @@ export default function Home() {
   };
 
   const stats = calculateStats();
+
+  const handleExport = (type: 'csv' | 'json' | 'sessions') => {
+    try {
+      const exportData = {
+        tournaments,
+        sessions,
+        summary: {
+          totalTournaments: stats.count,
+          totalBuyins: stats.totalBuyins,
+          totalPrizes: stats.totalPrizes,
+          netProfit: stats.net,
+          roi: stats.roi,
+          winRate: stats.winRate
+        }
+      };
+      
+      switch (type) {
+        case 'csv':
+          exportToCSV(exportData);
+          break;
+        case 'json':
+          exportToJSON(exportData);
+          break;
+        case 'sessions':
+          exportSessionReport(sessions);
+          break;
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
 
   const computeSessionNet = (s: SessionListItem): number => {
     if (typeof s.net === "number") return s.net;
@@ -246,6 +279,10 @@ export default function Home() {
                     <tbody className="divide-y divide-gray-200">
                       {sessions.slice(0, 5).map((session) => {
                         const net = computeSessionNet(session);
+                        const sessionTournaments = Array.isArray(session.tournaments) ? session.tournaments : [];
+                        const tournamentCount = sessionTournaments.length;
+                        const gameDisplay = tournamentCount > 0 ? `${tournamentCount} Tournaments` : 'No Tournaments';
+                        
                         return (
                           <tr key={session.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-sm">
@@ -256,7 +293,7 @@ export default function Home() {
                                 Online
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm">NL $2/$5</td>
+                            <td className="px-4 py-3 text-sm">{gameDisplay}</td>
                             <td className="px-4 py-3 text-sm text-right">${Number(session.total_buyins || 0).toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right">${Number(session.total_prize || 0).toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right">
@@ -264,7 +301,12 @@ export default function Home() {
                                 {net >= 0 ? '+' : ''}${net.toLocaleString()}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-right">3h</td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              {session.start_time && session.end_time
+                                ? `${Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / (1000 * 60 * 60))}h`
+                                : 'N/A'
+                              }
+                            </td>
                           </tr>
                         );
                       })}
@@ -317,18 +359,28 @@ export default function Home() {
                     <tbody className="divide-y divide-gray-200">
                       {sessions.map((session) => {
                         const net = computeSessionNet(session);
+                        const sessionTournaments = Array.isArray(session.tournaments) ? session.tournaments : [];
+                        const tournamentCount = sessionTournaments.length;
+                        
+                        // For now, show tournament count and basic info since tournaments might be IDs
+                        const gameDisplay = tournamentCount > 0 ? `${tournamentCount} Tournaments` : 'No Tournaments';
+                        const siteDisplay = 'Various Sites'; // Will be properly calculated once we get full tournament objects
+                        const sessionType = 'Online'; // Default for now
+                        
                         return (
                           <tr key={session.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-sm">
                               {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                Online
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                sessionType === 'Live' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {sessionType}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm">NL $2/$5</td>
-                            <td className="px-4 py-3 text-sm">PokerStars</td>
+                            <td className="px-4 py-3 text-sm">{gameDisplay}</td>
+                            <td className="px-4 py-3 text-sm">{siteDisplay}</td>
                             <td className="px-4 py-3 text-sm text-right">${Number(session.total_buyins || 0).toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right">${Number(session.total_prize || 0).toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right">
@@ -336,7 +388,12 @@ export default function Home() {
                                 {net >= 0 ? '+' : ''}${net.toLocaleString()}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-right">3h 30m</td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              {session.start_time && session.end_time
+                                ? `${Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / (1000 * 60 * 60))}h`
+                                : 'N/A'
+                              }
+                            </td>
                             <td className="px-4 py-3 text-center">
                               <button
                                 onClick={() => router.push(`/sessions/${session.id}`)}
