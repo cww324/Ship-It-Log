@@ -6,8 +6,10 @@ from api.models import Session, SessionTournament, Tournament
 from api.serializers import (
     SessionSerializer,
     SessionDetailSerializer,
+    SessionAccordionSerializer,
     TournamentSerializer,
     TournamentSlimSerializer,
+    TournamentAccordionSerializer,
 )
 
 
@@ -178,3 +180,85 @@ class SessionViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Invalid date format"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=False, methods=["get"])
+    def accordion_view(self, request):
+        """Get sessions optimized for Excel-like accordion display"""
+        sessions = self.get_queryset().prefetch_related(
+            "session_tournaments__tournament__site",
+            "session_tournaments__tournament__format_tags"
+        )
+        
+        # Add date filtering if provided
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+        
+        if date_from:
+            sessions = sessions.filter(start_time__date__gte=date_from)
+        if date_to:
+            sessions = sessions.filter(start_time__date__lte=date_to)
+            
+        # Limit results for performance
+        limit = int(request.query_params.get("limit", 50))
+        sessions = sessions[:limit]
+        
+        serializer = SessionAccordionSerializer(sessions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["patch"])
+    def bulk_update_tournaments(self, request, pk=None):
+        """Bulk update multiple tournaments in this session"""
+        session = self.get_object()
+        tournament_updates = request.data.get("tournaments", [])
+        
+        updated_tournaments = []
+        errors = []
+        
+        for update_data in tournament_updates:
+            tournament_id = update_data.get("id")
+            if not tournament_id:
+                errors.append({"error": "Tournament ID required"})
+                continue
+                
+            try:
+                # Verify tournament belongs to this session
+                tournament = Tournament.objects.get(
+                    id=tournament_id,
+                    tournament_sessions__session=session
+                )
+                
+                # Update tournament with provided data
+                serializer = TournamentAccordionSerializer(
+                    tournament,
+                    data=update_data,
+                    partial=True
+                )
+                
+                if serializer.is_valid():
+                    updated_tournament = serializer.save()
+                    updated_tournaments.append(serializer.data)
+                else:
+                    errors.append({
+                        "tournament_id": tournament_id,
+                        "errors": serializer.errors
+                    })
+                    
+            except Tournament.DoesNotExist:
+                errors.append({
+                    "tournament_id": tournament_id,
+                    "error": "Tournament not found in this session"
+                })
+            except Exception as e:
+                errors.append({
+                    "tournament_id": tournament_id,
+                    "error": str(e)
+                })
+        
+        # Return updated session data
+        session_serializer = SessionAccordionSerializer(session)
+        
+        return Response({
+            "session": session_serializer.data,
+            "updated_count": len(updated_tournaments),
+            "errors": errors
+        })
