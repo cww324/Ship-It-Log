@@ -144,3 +144,108 @@ export async function getActiveTournaments(sessionId: number): Promise<QuickTour
 export async function getCompletedTournaments(sessionId: number): Promise<QuickTournamentResponse['tournament'][]> {
   return apiGet(`/sessions/${sessionId}/completed_tournaments/`);
 }
+
+// Variance Calculator types and functions
+export interface VarianceCalculatorRequest {
+  bankroll: number;
+  target_buy_in: number;
+  custom_win_rate?: number | null;
+  custom_roi?: number | null;
+  simulation_tournaments?: number;
+  simulation_runs?: number;
+  stakes_analysis?: number[];
+}
+
+export interface VarianceCalculatorResponse {
+  player_stats: {
+    total_tournaments: number;
+    win_rate: number;
+    average_roi: number;
+    total_profit: number;
+    total_volume: number;
+    variance: number;
+  };
+  kelly_criterion: {
+    optimal_fraction: number;
+    recommended_buy_in: number;
+    current_buy_in: number;
+    status: string;
+    explanation: string;
+  };
+  risk_of_ruin: {
+    current_stake: {
+      buy_in: number;
+      ror_percentage: number;
+      risk_level: string;
+      risk_color: string;
+    };
+    stakes_analysis: Record<string, {
+      buy_in: number;
+      risk_of_ruin: number;
+      risk_level: string;
+      kelly_fraction: number;
+      recommended_bankroll: number;
+      buy_ins_available: number;
+      kelly_recommended_buy_in: number;
+    }>;
+    chart_data: {
+      labels: string[];
+      datasets: Array<{
+        label: string;
+        data: number[];
+        backgroundColor: string[];
+        borderColor: string[];
+        borderWidth: number;
+      }>;
+    };
+  };
+  monte_carlo: {
+    risk_of_ruin: number;
+    median_final_bankroll: number;
+    percentiles: {
+      p5: number;
+      p25: number;
+      p50: number;
+      p75: number;
+      p95: number;
+    };
+    average_final_bankroll: number;
+    peak_bankroll_stats: {
+      median: number;
+      p95: number;
+    };
+    lowest_bankroll_stats: {
+      median: number;
+      p5: number;
+    };
+    average_tournaments_played: number;
+  };
+  bankroll_recommendations: {
+    conservative: {
+      ror_1_percent: number;
+      ror_5_percent: number;
+    };
+    aggressive: {
+      ror_10_percent: number;
+      ror_20_percent: number;
+    };
+  };
+  variance_metrics: {
+    expected_value_per_tournament: number;
+    standard_deviation: number;
+    coefficient_of_variation: number | string;
+  };
+  calculation_parameters: {
+    bankroll: number;
+    target_buy_in: number;
+    win_rate: number;
+    average_roi: number;
+    simulation_tournaments: number;
+    simulation_runs: number;
+    used_custom_stats: boolean;
+  };
+}
+
+export async function calculateVariance(data: VarianceCalculatorRequest): Promise<VarianceCalculatorResponse> {
+  return apiPost('/analytics/variance-calculator/', data);
+}

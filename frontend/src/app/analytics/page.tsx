@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "@/lib/api";
-import type { Site, FormatTag } from "@/types";
+import type { Site, FormatTag, Tournament } from "@/types";
 import type { FilterState } from "@/types/filters";
 import { DEFAULT_FILTER_STATE, filtersToQueryParams } from "@/types/filters";
 import PokerFilters from "@/components/PokerFilters";
+import VarianceCalculator from "@/components/VarianceCalculator";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -88,8 +89,15 @@ export default function AnalyticsPage() {
       const queryString = new URLSearchParams(filterParams).toString();
       const queryParam = queryString ? `?${queryString}` : '';
       
+      // Use same tournament endpoint as dashboard for consistent profit calculation
+      const tournamentsQueryString = new URLSearchParams({
+        ...filterParams,
+        no_pagination: 'true'
+      }).toString();
+      
       const [
         summaryRes,
+        tournamentsRes,
         profitRes,
         monthlyRes,
         gameTypeRes,
@@ -101,6 +109,7 @@ export default function AnalyticsPage() {
         tagsRes
       ] = await Promise.all([
         apiGet<AnalyticsSummary>(`/analytics/summary/${queryParam}`),
+        apiGet<{results?: Tournament[]} | Tournament[]>(`/tournaments/?${tournamentsQueryString}`),
         apiGet(`/analytics/profit-over-time/${queryParam}`),
         apiGet(`/analytics/monthly-performance/${queryParam}`),
         apiGet(`/analytics/game-type-analysis/${queryParam}`),
@@ -112,7 +121,22 @@ export default function AnalyticsPage() {
         apiGet<{results?: FormatTag[]} | FormatTag[]>('/format-tags/')
       ]);
 
-      setSummary(summaryRes);
+      // Calculate profit using same logic as dashboard
+      const tournamentsList = Array.isArray(tournamentsRes) ? tournamentsRes : tournamentsRes?.results ?? [];
+      const totalBuyins = tournamentsList.reduce((sum: number, t: Tournament) => sum + Number(t.buy_in || 0), 0);
+      const totalPrizes = tournamentsList.reduce((sum: number, t: Tournament) => sum + Number(t.prize_won || 0) + Number(t.bounties_won || 0), 0);
+      const calculatedProfit = totalPrizes - totalBuyins;
+      
+      // Override the summary total_profit with the dashboard calculation
+      const correctedSummary = {
+        ...summaryRes,
+        total_profit: calculatedProfit,
+        total_volume: totalBuyins,
+        roi: totalBuyins > 0 ? ((calculatedProfit / totalBuyins) * 100) : 0,
+        total_tournaments: tournamentsList.length
+      };
+
+      setSummary(correctedSummary);
       setProfitOverTimeData(profitRes);
       setMonthlyPerformanceData(monthlyRes);
       setGameTypeData(gameTypeRes);
@@ -391,6 +415,13 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Variance Calculator - NEW FEATURE */}
+      <VarianceCalculator
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        summary={summary}
+      />
 
       {/* Variance Analysis */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border border-gray-700 p-6">

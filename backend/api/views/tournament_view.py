@@ -108,18 +108,21 @@ class TournamentViewSet(ModelViewSet):
             except ValueError:
                 pass
         
-        # Results filtering
+        # Results filtering - use same logic as analytics for consistency
         results_filter = request.query_params.get('results_filter')
         if results_filter:
             if results_filter == 'winning':
-                queryset = queryset.filter(prize_won__gt=0)
+                queryset = queryset.extra(
+                    where=["(prize_won + bounties_won - buy_in) > 0"]
+                )
             elif results_filter == 'losing':
-                queryset = queryset.filter(prize_won=0)
+                queryset = queryset.extra(
+                    where=["(prize_won + bounties_won - buy_in) < 0"]
+                )
             elif results_filter == 'breakeven':
-                # This is tricky - need to calculate net profit
-                # For now, just filter tournaments where prize_won equals buy_in
-                from django.db.models import F
-                queryset = queryset.filter(prize_won=F('buy_in'))
+                queryset = queryset.extra(
+                    where=["(prize_won + bounties_won - buy_in) = 0"]
+                )
         
         return queryset
 
