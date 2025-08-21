@@ -465,6 +465,9 @@ def analytics_summary(request):
         tournament_sessions__session__user=user
     ).select_related('site')
     
+    # Apply filters - THIS WAS MISSING!
+    tournaments = apply_tournament_filters(tournaments, request)
+    
     sessions = Session.objects.filter(user=user)
     
     if not tournaments.exists():

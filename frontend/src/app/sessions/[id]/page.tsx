@@ -340,11 +340,31 @@ export default function SessionDetailPage() {
         notes: editForm.notes,
       };
 
+      // Debug logging
+      console.log('🔍 Tournament Edit Debug:', {
+        tournamentId: editingTournament,
+        updateData,
+        apiUrl: `/tournaments/${editingTournament}/`
+      });
+
       await apiPut(`/tournaments/${editingTournament}/`, updateData);
       await load();
       cancelEdit();
     } catch (e: unknown) {
       const error = e as Error;
+      console.error('🚨 Tournament Edit Error:', {
+        error: error.message,
+        tournamentId: editingTournament,
+        updateData: {
+          name: editForm.name.trim(),
+          buy_in: parseFloat(editForm.buy_in),
+          prize_won: parseFloat(editForm.prize_won),
+          bounties_won: parseFloat(editForm.bounties_won),
+          entries_used: editForm.entries_used,
+          rebuys: editForm.rebuys,
+          notes: editForm.notes,
+        }
+      });
       setError(error?.message || 'Failed to update tournament');
     }
   }
@@ -860,20 +880,20 @@ function QuickAddForm({ form, setForm, onSubmit, onAdvanced, onQuickAdd, saving 
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
+      <div className="grid grid-cols-5 gap-4">
+        <div className="col-span-3">
           <label className="block text-sm font-medium text-gray-300 mb-2">Site</label>
           <SiteSelect
             value={form.site}
             onChange={(siteId) => setForm({ ...form, site: siteId })}
           />
         </div>
-        <div>
+        <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-300 mb-2">Buy-in</label>
           <input
             type="number"
             step="0.01"
-            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="33.00"
             value={form.buy_in}
             onChange={(e) => setForm({ ...form, buy_in: e.target.value })}
