@@ -183,7 +183,9 @@ class SessionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def accordion_view(self, request):
-        """Get sessions optimized for Excel-like accordion display"""
+        """Get sessions optimized for Excel-like accordion display with filtering"""
+        from decimal import Decimal
+        
         sessions = self.get_queryset().prefetch_related(
             "session_tournaments__tournament__site",
             "session_tournaments__tournament__format_tags"
@@ -194,16 +196,102 @@ class SessionViewSet(viewsets.ModelViewSet):
         date_to = request.query_params.get("date_to")
         
         if date_from:
-            sessions = sessions.filter(start_time__date__gte=date_from)
+            try:
+                sessions = sessions.filter(start_time__date__gte=date_from)
+            except ValueError:
+                pass
         if date_to:
-            sessions = sessions.filter(start_time__date__lte=date_to)
+            try:
+                sessions = sessions.filter(start_time__date__lte=date_to)
+            except ValueError:
+                pass
+        
+        # Filter by tournament criteria
+        buy_in_min = request.query_params.get('buy_in_min')
+        buy_in_max = request.query_params.get('buy_in_max')
+        sites = request.query_params.get('sites')
+        game_types = request.query_params.get('game_types')
+        tournament_types = request.query_params.get('tournament_types')
+        speeds = request.query_params.get('speeds')
+        table_sizes = request.query_params.get('table_sizes')
+        format_tags = request.query_params.get('format_tags')
+        results_filter = request.query_params.get('results_filter')
+        
+        # Apply tournament-based filters by filtering sessions that have tournaments matching criteria
+        if any([buy_in_min, buy_in_max, sites, game_types, tournament_types, speeds, table_sizes, format_tags, results_filter]):
+            tournament_filters = {}
+            
+            if buy_in_min:
+                try:
+                    tournament_filters['session_tournaments__tournament__buy_in__gte'] = Decimal(buy_in_min)
+                except (ValueError, TypeError):
+                    pass
+            
+            if buy_in_max:
+                try:
+                    tournament_filters['session_tournaments__tournament__buy_in__lte'] = Decimal(buy_in_max)
+                except (ValueError, TypeError):
+                    pass
+            
+            if sites:
+                try:
+                    site_ids = [int(s.strip()) for s in sites.split(',') if s.strip()]
+                    tournament_filters['session_tournaments__tournament__site__id__in'] = site_ids
+                except ValueError:
+                    pass
+            
+            if game_types:
+                game_list = [g.strip() for g in game_types.split(',') if g.strip()]
+                tournament_filters['session_tournaments__tournament__game__in'] = game_list
+            
+            if tournament_types:
+                type_list = [t.strip() for t in tournament_types.split(',') if t.strip()]
+                tournament_filters['session_tournaments__tournament__type__in'] = type_list
+            
+            if speeds:
+                speed_list = [s.strip() for s in speeds.split(',') if s.strip()]
+                tournament_filters['session_tournaments__tournament__speed__in'] = speed_list
+            
+            if table_sizes:
+                size_list = [s.strip() for s in table_sizes.split(',') if s.strip()]
+                tournament_filters['session_tournaments__tournament__table_size__in'] = size_list
+            
+            if format_tags:
+                try:
+                    tag_ids = [int(t.strip()) for t in format_tags.split(',') if t.strip()]
+                    tournament_filters['session_tournaments__tournament__format_tags__id__in'] = tag_ids
+                except ValueError:
+                    pass
+            
+            if tournament_filters:
+                sessions = sessions.filter(**tournament_filters).distinct()
+        
+        # Results filtering (winning/losing sessions) - will be applied after serialization
+        # since it requires calculating session totals
             
         # Limit results for performance
         limit = int(request.query_params.get("limit", 50))
         sessions = sessions[:limit]
         
         serializer = SessionAccordionSerializer(sessions, many=True)
-        return Response(serializer.data)
+        session_data = serializer.data
+        
+        # Apply results filter if specified
+        if results_filter:
+            filtered_sessions = []
+            for session in session_data:
+                net_profit = session.get('net_profit', 0)
+                if results_filter == 'winning' and net_profit > 0:
+                    filtered_sessions.append(session)
+                elif results_filter == 'losing' and net_profit < 0:
+                    filtered_sessions.append(session)
+                elif results_filter == 'breakeven' and net_profit == 0:
+                    filtered_sessions.append(session)
+                elif results_filter == 'all':
+                    filtered_sessions.append(session)
+            session_data = filtered_sessions
+        
+        return Response(session_data)
 
     @action(detail=True, methods=["patch"])
     def bulk_update_tournaments(self, request, pk=None):

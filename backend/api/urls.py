@@ -32,5 +32,10 @@ urlpatterns = [
     path("analytics/game-type-analysis/", analytics_view.game_type_analysis, name="analytics_game_type_analysis"),
     path("analytics/session-length-vs-profit/", analytics_view.session_length_vs_profit, name="analytics_session_length_vs_profit"),
     path("analytics/summary/", analytics_view.analytics_summary, name="analytics_summary"),
+    # New poker-specific analytics endpoints
+    path("analytics/performance-by-stakes/", analytics_view.performance_by_stakes, name="analytics_performance_by_stakes"),
+    path("analytics/variance-analysis/", analytics_view.variance_analysis, name="analytics_variance_analysis"),
+    path("analytics/site-performance/", analytics_view.site_performance_comparison, name="analytics_site_performance"),
+    path("analytics/tournament-format-analysis/", analytics_view.tournament_format_analysis, name="analytics_tournament_format"),
 ]
 urlpatterns += router.urls

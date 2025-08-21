@@ -10,13 +10,8 @@ export default function LandingPage() {
 
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (token) {
-      setIsAuthenticated(true);
-      router.replace("/dashboard");
-    } else {
-      setIsAuthenticated(false);
-    }
-  }, [router]);
+    setIsAuthenticated(!!token);
+  }, []);
 
   // Show loading while checking authentication
   if (isAuthenticated === null) {
@@ -24,16 +19,6 @@ export default function LandingPage() {
       <div className="text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
         <p className="mt-2 text-blue-200">Loading...</p>
-      </div>
-    </div>;
-  }
-
-  // Show redirect message if authenticated
-  if (isAuthenticated) {
-    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
-        <p className="mt-2 text-blue-200">Redirecting to dashboard...</p>
       </div>
     </div>;
   }
@@ -50,18 +35,29 @@ export default function LandingPage() {
             <span className="text-white text-xl font-bold">ShipIt Log</span>
           </div>
           <div className="flex items-center space-x-4">
-            <Link 
-              href="/login" 
-              className="text-gray-300 hover:text-white transition-colors duration-200"
-            >
-              Sign In
-            </Link>
-            <Link 
-              href="/register" 
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              Get Started
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                href="/dashboard"
+                className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="text-gray-300 hover:text-white transition-colors duration-200"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -83,18 +79,29 @@ export default function LandingPage() {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-            <Link 
-              href="/register" 
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
-            >
-              Start Tracking Free
-            </Link>
-            <Link 
-              href="/login" 
-              className="border-2 border-gray-400 text-gray-300 px-8 py-4 rounded-xl font-semibold text-lg hover:border-white hover:text-white transition-all duration-200"
-            >
-              Sign In
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                href="/dashboard"
+                className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/register"
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+                >
+                  Start Tracking Free
+                </Link>
+                <Link
+                  href="/login"
+                  className="border-2 border-gray-400 text-gray-300 px-8 py-4 rounded-xl font-semibold text-lg hover:border-white hover:text-white transition-all duration-200"
+                >
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Hero Image/Demo */}
@@ -274,18 +281,29 @@ export default function LandingPage() {
             and maximize their profits.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link 
-              href="/register" 
-              className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
-            >
-              Start Free Today
-            </Link>
-            <Link 
-              href="/login" 
-              className="border-2 border-white text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all duration-200"
-            >
-              Already Have an Account?
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                href="/dashboard"
+                className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/register"
+                  className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+                >
+                  Start Free Today
+                </Link>
+                <Link
+                  href="/login"
+                  className="border-2 border-white text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all duration-200"
+                >
+                  Already Have an Account?
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>

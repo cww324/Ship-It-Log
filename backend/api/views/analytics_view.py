@@ -8,8 +8,107 @@ from django.views import View
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from decimal import Decimal
 
 from ..models import Tournament, Session, SessionTournament, Site
+
+
+def apply_tournament_filters(queryset, request):
+    """Apply filtering parameters to tournament queryset"""
+    
+    # Date filtering
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+    
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            queryset = queryset.filter(start_time__date__gte=date_from_obj)
+        except ValueError:
+            pass
+    
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            queryset = queryset.filter(start_time__date__lte=date_to_obj)
+        except ValueError:
+            pass
+    
+    # Buy-in filtering (stakes)
+    buy_in_min = request.query_params.get('buy_in_min')
+    buy_in_max = request.query_params.get('buy_in_max')
+    
+    if buy_in_min:
+        try:
+            queryset = queryset.filter(buy_in__gte=Decimal(buy_in_min))
+        except (ValueError, TypeError):
+            pass
+    
+    if buy_in_max:
+        try:
+            queryset = queryset.filter(buy_in__lte=Decimal(buy_in_max))
+        except (ValueError, TypeError):
+            pass
+    
+    # Sites filtering
+    sites = request.query_params.get('sites')
+    if sites:
+        try:
+            site_ids = [int(s.strip()) for s in sites.split(',') if s.strip()]
+            queryset = queryset.filter(site__id__in=site_ids)
+        except ValueError:
+            pass
+    
+    # Game types filtering
+    game_types = request.query_params.get('game_types')
+    if game_types:
+        game_list = [g.strip() for g in game_types.split(',') if g.strip()]
+        queryset = queryset.filter(game__in=game_list)
+    
+    # Tournament types filtering
+    tournament_types = request.query_params.get('tournament_types')
+    if tournament_types:
+        type_list = [t.strip() for t in tournament_types.split(',') if t.strip()]
+        queryset = queryset.filter(type__in=type_list)
+    
+    # Speed filtering
+    speeds = request.query_params.get('speeds')
+    if speeds:
+        speed_list = [s.strip() for s in speeds.split(',') if s.strip()]
+        queryset = queryset.filter(speed__in=speed_list)
+    
+    # Table size filtering
+    table_sizes = request.query_params.get('table_sizes')
+    if table_sizes:
+        size_list = [s.strip() for s in table_sizes.split(',') if s.strip()]
+        queryset = queryset.filter(table_size__in=size_list)
+    
+    # Format tags filtering
+    format_tags = request.query_params.get('format_tags')
+    if format_tags:
+        try:
+            tag_ids = [int(t.strip()) for t in format_tags.split(',') if t.strip()]
+            queryset = queryset.filter(format_tags__id__in=tag_ids)
+        except ValueError:
+            pass
+    
+    # Results filtering
+    results_filter = request.query_params.get('results_filter')
+    if results_filter:
+        if results_filter == 'winning':
+            queryset = queryset.extra(
+                where=["(prize_won + bounties_won - buy_in) > 0"]
+            )
+        elif results_filter == 'losing':
+            queryset = queryset.extra(
+                where=["(prize_won + bounties_won - buy_in) < 0"]
+            )
+        elif results_filter == 'breakeven':
+            queryset = queryset.extra(
+                where=["(prize_won + bounties_won - buy_in) = 0"]
+            )
+    
+    return queryset
 
 
 @api_view(['GET'])
@@ -20,10 +119,13 @@ def profit_over_time(request):
     """
     user = request.user
     
-    # Get all tournaments for the user through sessions
+    # Get all tournaments for the user through sessions with filtering
     tournaments = Tournament.objects.filter(
         tournament_sessions__session__user=user
     ).select_related('site').order_by('start_time')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
     
     if not tournaments.exists():
         return Response({
@@ -94,6 +196,9 @@ def monthly_performance(request):
     tournaments = Tournament.objects.filter(
         tournament_sessions__session__user=user
     ).select_related('site')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
     
     if not tournaments.exists():
         return Response({
@@ -229,6 +334,9 @@ def game_type_analysis(request):
     tournaments = Tournament.objects.filter(
         tournament_sessions__session__user=user
     ).select_related('site')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
     
     if not tournaments.exists():
         return Response({
@@ -422,4 +530,362 @@ def analytics_summary(request):
         'avg_session_profit': round(avg_session_profit, 2),
         'best_month': best_month,
         'most_profitable_game': most_profitable_game
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def performance_by_stakes(request):
+    """
+    Returns performance breakdown by stakes levels
+    """
+    user = request.user
+    
+    tournaments = Tournament.objects.filter(
+        tournament_sessions__session__user=user
+    ).select_related('site')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
+    
+    if not tournaments.exists():
+        return Response({
+            'labels': [],
+            'datasets': [{
+                'label': 'Profit by Stakes',
+                'data': [],
+                'backgroundColor': 'rgba(59, 130, 246, 0.8)'
+            }]
+        })
+    
+    # Convert to pandas and categorize by stakes
+    data = []
+    for t in tournaments:
+        profit = float(t.prize_won + t.bounties_won - t.buy_in)
+        buy_in = float(t.buy_in)
+        
+        # Categorize stakes
+        if buy_in <= 55:
+            stakes_category = 'Small ($0-55)'
+        elif buy_in <= 215:
+            stakes_category = 'Medium ($55-215)'
+        else:
+            stakes_category = 'High ($215+)'
+        
+        data.append({
+            'stakes': stakes_category,
+            'profit': profit,
+            'buy_in': buy_in,
+            'count': 1
+        })
+    
+    df = pd.DataFrame(data)
+    stakes_stats = df.groupby('stakes').agg({
+        'profit': 'sum',
+        'buy_in': 'sum',
+        'count': 'sum'
+    }).reset_index()
+    
+    stakes_stats['roi'] = (stakes_stats['profit'] / stakes_stats['buy_in'] * 100).round(2)
+    stakes_stats['avg_profit'] = (stakes_stats['profit'] / stakes_stats['count']).round(2)
+    
+    labels = stakes_stats['stakes'].tolist()
+    profit_data = stakes_stats['profit'].tolist()
+    roi_data = stakes_stats['roi'].tolist()
+    volume_data = stakes_stats['buy_in'].tolist()
+    count_data = stakes_stats['count'].tolist()
+    
+    return Response({
+        'labels': labels,
+        'datasets': [
+            {
+                'label': 'Total Profit ($)',
+                'data': profit_data,
+                'backgroundColor': 'rgba(59, 130, 246, 0.8)',
+                'yAxisID': 'y'
+            },
+            {
+                'label': 'ROI (%)',
+                'data': roi_data,
+                'backgroundColor': 'rgba(16, 185, 129, 0.8)',
+                'yAxisID': 'y1'
+            }
+        ],
+        'summary': {
+            'volume_by_stakes': dict(zip(labels, volume_data)),
+            'count_by_stakes': dict(zip(labels, count_data))
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def variance_analysis(request):
+    """
+    Returns variance and downswing analysis
+    """
+    user = request.user
+    
+    tournaments = Tournament.objects.filter(
+        tournament_sessions__session__user=user
+    ).select_related('site').order_by('start_time')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
+    
+    if not tournaments.exists():
+        return Response({
+            'labels': [],
+            'datasets': [{
+                'label': 'Running Variance',
+                'data': [],
+                'borderColor': 'rgb(239, 68, 68)',
+                'backgroundColor': 'rgba(239, 68, 68, 0.1)'
+            }]
+        })
+    
+    # Calculate running variance and identify downswings
+    data = []
+    cumulative_profit = 0
+    peak_profit = 0
+    current_downswing = 0
+    max_downswing = 0
+    
+    for t in tournaments:
+        profit = float(t.prize_won + t.bounties_won - t.buy_in)
+        cumulative_profit += profit
+        
+        # Track peak and downswings
+        if cumulative_profit > peak_profit:
+            peak_profit = cumulative_profit
+            current_downswing = 0
+        else:
+            current_downswing = peak_profit - cumulative_profit
+            if current_downswing > max_downswing:
+                max_downswing = current_downswing
+        
+        data.append({
+            'date': t.start_time.date(),
+            'cumulative_profit': cumulative_profit,
+            'peak_profit': peak_profit,
+            'current_downswing': current_downswing,
+            'profit': profit
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Group by date for daily aggregation
+    daily_data = df.groupby('date').agg({
+        'cumulative_profit': 'last',
+        'peak_profit': 'last',
+        'current_downswing': 'last',
+        'profit': 'sum'
+    }).reset_index()
+    
+    # Calculate rolling variance (30-day window)
+    daily_data['rolling_variance'] = daily_data['profit'].rolling(window=min(30, len(daily_data)), min_periods=1).var()
+    
+    labels = [date.strftime('%Y-%m-%d') for date in daily_data['date']]
+    cumulative_data = daily_data['cumulative_profit'].tolist()
+    peak_data = daily_data['peak_profit'].tolist()
+    downswing_data = daily_data['current_downswing'].tolist()
+    variance_data = daily_data['rolling_variance'].fillna(0).tolist()
+    
+    return Response({
+        'labels': labels,
+        'datasets': [
+            {
+                'label': 'Cumulative Profit',
+                'data': cumulative_data,
+                'borderColor': 'rgb(59, 130, 246)',
+                'backgroundColor': 'rgba(59, 130, 246, 0.1)',
+                'tension': 0.1,
+                'fill': False
+            },
+            {
+                'label': 'Peak Profit',
+                'data': peak_data,
+                'borderColor': 'rgb(16, 185, 129)',
+                'backgroundColor': 'rgba(16, 185, 129, 0.1)',
+                'tension': 0.1,
+                'fill': False,
+                'borderDash': [5, 5]
+            },
+            {
+                'label': 'Current Downswing',
+                'data': downswing_data,
+                'borderColor': 'rgb(239, 68, 68)',
+                'backgroundColor': 'rgba(239, 68, 68, 0.1)',
+                'tension': 0.1,
+                'fill': True
+            }
+        ],
+        'summary': {
+            'max_downswing': round(max_downswing, 2),
+            'current_downswing': round(current_downswing, 2),
+            'peak_profit': round(peak_profit, 2),
+            'current_profit': round(cumulative_profit, 2)
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def site_performance_comparison(request):
+    """
+    Returns performance comparison across different sites
+    """
+    user = request.user
+    
+    tournaments = Tournament.objects.filter(
+        tournament_sessions__session__user=user
+    ).select_related('site')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
+    
+    if not tournaments.exists():
+        return Response({
+            'labels': [],
+            'datasets': [{
+                'label': 'Profit by Site',
+                'data': [],
+                'backgroundColor': 'rgba(59, 130, 246, 0.8)'
+            }]
+        })
+    
+    # Convert to pandas and analyze by site
+    data = []
+    for t in tournaments:
+        profit = float(t.prize_won + t.bounties_won - t.buy_in)
+        data.append({
+            'site': t.site.name,
+            'site_type': t.site.type,
+            'profit': profit,
+            'buy_in': float(t.buy_in),
+            'count': 1
+        })
+    
+    df = pd.DataFrame(data)
+    site_stats = df.groupby(['site', 'site_type']).agg({
+        'profit': 'sum',
+        'buy_in': 'sum',
+        'count': 'sum'
+    }).reset_index()
+    
+    site_stats['roi'] = (site_stats['profit'] / site_stats['buy_in'] * 100).round(2)
+    site_stats['avg_profit'] = (site_stats['profit'] / site_stats['count']).round(2)
+    
+    # Sort by profit for better visualization
+    site_stats = site_stats.sort_values('profit', ascending=False)
+    
+    labels = site_stats['site'].tolist()
+    profit_data = site_stats['profit'].tolist()
+    roi_data = site_stats['roi'].tolist()
+    volume_data = site_stats['buy_in'].tolist()
+    count_data = site_stats['count'].tolist()
+    
+    # Color code by site type
+    colors = []
+    for site_type in site_stats['site_type']:
+        if site_type == 'live':
+            colors.append('rgba(239, 68, 68, 0.8)')  # Red for live
+        else:
+            colors.append('rgba(59, 130, 246, 0.8)')  # Blue for online
+    
+    return Response({
+        'labels': labels,
+        'datasets': [
+            {
+                'label': 'Total Profit ($)',
+                'data': profit_data,
+                'backgroundColor': colors,
+                'yAxisID': 'y'
+            }
+        ],
+        'summary': {
+            'roi_by_site': dict(zip(labels, roi_data)),
+            'volume_by_site': dict(zip(labels, volume_data)),
+            'count_by_site': dict(zip(labels, count_data)),
+            'site_types': dict(zip(labels, site_stats['site_type'].tolist()))
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tournament_format_analysis(request):
+    """
+    Returns performance analysis by tournament format (speed, table size)
+    """
+    user = request.user
+    
+    tournaments = Tournament.objects.filter(
+        tournament_sessions__session__user=user
+    ).select_related('site')
+    
+    # Apply filters
+    tournaments = apply_tournament_filters(tournaments, request)
+    
+    if not tournaments.exists():
+        return Response({
+            'speed_analysis': {'labels': [], 'datasets': []},
+            'table_size_analysis': {'labels': [], 'datasets': []}
+        })
+    
+    # Convert to pandas
+    data = []
+    for t in tournaments:
+        profit = float(t.prize_won + t.bounties_won - t.buy_in)
+        data.append({
+            'speed': t.speed,
+            'table_size': t.table_size,
+            'profit': profit,
+            'buy_in': float(t.buy_in),
+            'count': 1
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Speed analysis
+    speed_stats = df.groupby('speed').agg({
+        'profit': 'sum',
+        'buy_in': 'sum',
+        'count': 'sum'
+    }).reset_index()
+    speed_stats['roi'] = (speed_stats['profit'] / speed_stats['buy_in'] * 100).round(2)
+    
+    # Table size analysis
+    table_stats = df.groupby('table_size').agg({
+        'profit': 'sum',
+        'buy_in': 'sum',
+        'count': 'sum'
+    }).reset_index()
+    table_stats['roi'] = (table_stats['profit'] / table_stats['buy_in'] * 100).round(2)
+    
+    return Response({
+        'speed_analysis': {
+            'labels': speed_stats['speed'].tolist(),
+            'datasets': [
+                {
+                    'label': 'Profit by Speed',
+                    'data': speed_stats['profit'].tolist(),
+                    'backgroundColor': ['rgba(59, 130, 246, 0.8)', 'rgba(16, 185, 129, 0.8)',
+                                     'rgba(239, 68, 68, 0.8)', 'rgba(245, 158, 11, 0.8)']
+                }
+            ],
+            'roi_data': speed_stats['roi'].tolist()
+        },
+        'table_size_analysis': {
+            'labels': table_stats['table_size'].tolist(),
+            'datasets': [
+                {
+                    'label': 'Profit by Table Size',
+                    'data': table_stats['profit'].tolist(),
+                    'backgroundColor': ['rgba(139, 69, 19, 0.8)', 'rgba(75, 85, 99, 0.8)',
+                                     'rgba(168, 85, 247, 0.8)', 'rgba(236, 72, 153, 0.8)']
+                }
+            ],
+            'roi_data': table_stats['roi'].tolist()
+        }
     })
