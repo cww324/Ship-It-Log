@@ -8,6 +8,7 @@ from api.views.session_view import SessionViewSet
 from api.views.session_tournament_view import SessionTournamentViewSet
 from api.views import auth_view
 from api.views import analytics_view
+from api.views import variance_view
 from django.urls import path
 
 router = DefaultRouter()
@@ -37,5 +38,7 @@ urlpatterns = [
     path("analytics/variance-analysis/", analytics_view.variance_analysis, name="analytics_variance_analysis"),
     path("analytics/site-performance/", analytics_view.site_performance_comparison, name="analytics_site_performance"),
     path("analytics/tournament-format-analysis/", analytics_view.tournament_format_analysis, name="analytics_tournament_format"),
+    # Variance Calculator endpoint
+    path("analytics/variance-calculator/", variance_view.variance_calculator, name="variance_calculator"),
 ]
 urlpatterns += router.urls
