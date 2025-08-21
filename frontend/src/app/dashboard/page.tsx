@@ -74,23 +74,47 @@ export default function DashboardPage() {
     
     setLoading(true);
     try {
-      const limit = page === 1 ? 50 : sessionsPerPage; // Load more initially for stats
-      
       // Convert filters to query parameters
       const filterParams = filtersToQueryParams(filters);
-      const queryString = new URLSearchParams({
-        limit: limit.toString(),
+      
+      // For tournaments (stats calculation): Load ALL tournaments without pagination
+      const tournamentsQueryString = new URLSearchParams({
+        ...filterParams,
+        no_pagination: 'true'
+      }).toString();
+      
+      // For sessions (display): Use pagination limit
+      const sessionsLimit = page === 1 ? 50 : sessionsPerPage;
+      const sessionsQueryString = new URLSearchParams({
+        limit: sessionsLimit.toString(),
         ...filterParams
       }).toString();
       
+      // Debug logging
+      console.log('🔍 Dashboard Filter Debug:', {
+        filters,
+        filterParams,
+        tournamentsQuery: `/tournaments/?${tournamentsQueryString}`,
+        sessionsQuery: `/sessions/accordion_view/?${sessionsQueryString}`
+      });
+      
       const [tournamentsRes, sessionsRes, sitesRes, tagsRes] = await Promise.all([
-        apiGet<{results?: TournamentWithSession[]} | TournamentWithSession[]>(`/tournaments/?${queryString}`),
-        apiGet<SessionAccordion[]>(`/sessions/accordion_view/?${queryString}`),
+        apiGet<{results?: TournamentWithSession[]} | TournamentWithSession[]>(`/tournaments/?${tournamentsQueryString}`),
+        apiGet<SessionAccordion[]>(`/sessions/accordion_view/?${sessionsQueryString}`),
         apiGet<{results?: Site[]} | Site[]>('/sites/'),
         apiGet<{results?: FormatTag[]} | FormatTag[]>('/format-tags/')
       ]);
       
       const tournamentsList: TournamentWithSession[] = Array.isArray(tournamentsRes) ? tournamentsRes : tournamentsRes?.results ?? [];
+      
+      // Debug logging
+      console.log('🔍 Tournaments loaded:', {
+        count: tournamentsList.length,
+        sampleTournaments: tournamentsList.slice(0, 3),
+        totalBuyins: tournamentsList.reduce((sum, t) => sum + Number(t.buy_in || 0), 0),
+        totalPrizes: tournamentsList.reduce((sum, t) => sum + Number(t.prize_won || 0) + Number(t.bounties_won || 0), 0)
+      });
+      
       setTournaments(tournamentsList);
       
       // Use accordion view data which has proper tournament counts
@@ -116,11 +140,16 @@ export default function DashboardPage() {
       if (page === 1) {
         setSessions(sessionsWithExpanded);
       } else {
-        setSessions(prev => [...prev, ...sessionsWithExpanded]);
+        // Merge sessions and remove duplicates by ID
+        setSessions(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newSessions = sessionsWithExpanded.filter(s => !existingIds.has(s.id));
+          return [...prev, ...newSessions];
+        });
       }
       
       // Check if there are more sessions
-      setHasMoreSessions(sessionsList.length === limit);
+      setHasMoreSessions(sessionsList.length === sessionsLimit);
       setTotalSessions(prev => page === 1 ? sessionsList.length : prev + sessionsList.length);
       
       const sitesList: Site[] = Array.isArray(sitesRes) ? sitesRes : sitesRes?.results ?? [];
@@ -170,6 +199,7 @@ export default function DashboardPage() {
   };
 
   const calculateStats = () => {
+    // Use the filtered tournaments data that's already loaded based on current filters
     const tournamentsArray = Array.isArray(tournaments) ? tournaments : [];
     const totalBuyins = tournamentsArray.reduce((sum, t) => sum + Number(t.buy_in || 0), 0);
     const totalPrizes = tournamentsArray.reduce((sum, t) => sum + Number(t.prize_won || 0) + Number(t.bounties_won || 0), 0);
@@ -180,11 +210,11 @@ export default function DashboardPage() {
     const wins = tournamentsArray.filter(t => Number(t.prize_won || 0) > 0).length;
     const winRate = tournamentsArray.length > 0 ? (wins / tournamentsArray.length) * 100 : 0;
     
-    return { 
-      totalBuyins, 
-      totalPrizes, 
-      net, 
-      roi, 
+    return {
+      totalBuyins,
+      totalPrizes,
+      net,
+      roi,
       count: tournamentsArray.length,
       wins,
       winRate,
@@ -195,6 +225,7 @@ export default function DashboardPage() {
   const stats = calculateStats();
 
   const calculateOnlineVsLive = () => {
+    // Use the filtered tournaments data that's already loaded based on current filters
     const tournamentsArray = Array.isArray(tournaments) ? tournaments : [];
     
     let onlineProfit = 0;
@@ -246,8 +277,11 @@ export default function DashboardPage() {
   const calculateTournamentExtremes = () => {
     const tournamentStats = new Map();
     
+    // Use the filtered tournaments data that's already loaded based on current filters
+    const tournamentsArray = Array.isArray(tournaments) ? tournaments : [];
+    
     // Group tournaments by name and calculate stats
-    tournaments.forEach(tournament => {
+    tournamentsArray.forEach(tournament => {
       const name = tournament.name;
       if (!tournamentStats.has(name)) {
         tournamentStats.set(name, {

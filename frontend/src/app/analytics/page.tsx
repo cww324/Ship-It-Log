@@ -246,7 +246,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-4 mb-2">
             <button
               onClick={() => router.push('/dashboard')}
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
             >
               <span>←</span>
               Back to Dashboard
@@ -393,13 +393,13 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Variance Analysis */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Variance & Downswing Analysis</h3>
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Variance & Downswing Analysis</h3>
         <div className="h-80">
           {varianceData ? (
             <Line data={varianceData} options={chartOptions} />
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-500">
+            <div className="h-full flex items-center justify-center text-gray-400">
               No data available
             </div>
           )}
@@ -407,20 +407,20 @@ export default function AnalyticsPage() {
         {varianceData?.summary && (
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div className="text-center">
-              <div className="font-semibold text-red-600">${varianceData.summary.max_downswing.toLocaleString()}</div>
-              <div className="text-gray-600">Max Downswing</div>
+              <div className="font-semibold text-red-400">${varianceData.summary.max_downswing.toLocaleString()}</div>
+              <div className="text-gray-300">Max Downswing</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-orange-600">${varianceData.summary.current_downswing.toLocaleString()}</div>
-              <div className="text-gray-600">Current Downswing</div>
+              <div className="font-semibold text-orange-400">${varianceData.summary.current_downswing.toLocaleString()}</div>
+              <div className="text-gray-300">Current Downswing</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-green-600">${varianceData.summary.peak_profit.toLocaleString()}</div>
-              <div className="text-gray-600">Peak Profit</div>
+              <div className="font-semibold text-emerald-400">${varianceData.summary.peak_profit.toLocaleString()}</div>
+              <div className="text-gray-300">Peak Profit</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-blue-600">${varianceData.summary.current_profit.toLocaleString()}</div>
-              <div className="text-gray-600">Current Profit</div>
+              <div className="font-semibold text-blue-400">${varianceData.summary.current_profit.toLocaleString()}</div>
+              <div className="text-gray-300">Current Profit</div>
             </div>
           </div>
         )}
@@ -429,13 +429,13 @@ export default function AnalyticsPage() {
       {/* Additional Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Site Performance */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Site Performance Comparison</h3>
+        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Site Performance Comparison</h3>
           <div className="h-64">
             {sitePerformanceData ? (
               <Bar data={sitePerformanceData} options={chartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center text-gray-400">
                 No data available
               </div>
             )}
@@ -443,20 +443,20 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Tournament Format Analysis */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Format Performance</h3>
+        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Format Performance</h3>
           <div className="h-64">
             {formatAnalysisData?.speed_analysis ? (
               <Bar data={formatAnalysisData.speed_analysis} options={chartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center text-gray-400">
                 No data available
               </div>
             )}
           </div>
           <div className="mt-4 text-center">
             <button
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
               onClick={() => {
                 // Toggle between speed and table size analysis
                 // This could be enhanced with state management
@@ -470,18 +470,18 @@ export default function AnalyticsPage() {
 
       {/* Insights Section */}
       {summary && (
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Insights</h3>
+        <div className="bg-gradient-to-r from-blue-800 to-purple-800 rounded-xl p-6 border border-gray-600">
+          <h3 className="text-lg font-semibold text-white mb-4">Key Insights</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Best Performing Month</h4>
-              <p className="text-gray-600">
+            <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+              <h4 className="font-medium text-white mb-2">Best Performing Month</h4>
+              <p className="text-gray-300">
                 {summary.best_month ? summary.best_month : 'Not enough data yet'}
               </p>
             </div>
-            <div className="bg-white rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Most Profitable Game</h4>
-              <p className="text-gray-600">
+            <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+              <h4 className="font-medium text-white mb-2">Most Profitable Game</h4>
+              <p className="text-gray-300">
                 {summary.most_profitable_game ? summary.most_profitable_game : 'Not enough data yet'}
               </p>
             </div>
