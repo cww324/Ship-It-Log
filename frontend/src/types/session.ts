@@ -42,6 +42,28 @@ export interface SessionListItem {
   totals?: SessionTotals | null;
 }
 
+// Accordion session interface for enhanced session data
+export interface SessionAccordion {
+  id: number;
+  user?: number;
+  start_time: string;
+  end_time: string | null;
+  notes?: string | null;
+  tournaments: Tournament[];
+  
+  // Enhanced accordion fields
+  tournament_count: number;
+  total_buyins: number;
+  avg_buyin: number;
+  total_winnings: number;
+  net_profit: number;
+  win_count: number;
+  loss_count: number;
+  active_count: number;
+  session_duration: number | null;
+  main_sites: string[];
+}
+
 // Put the helper here as requested
 export interface Paginated<T> {
   count: number;

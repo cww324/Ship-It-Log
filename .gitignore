@@ -87,3 +87,6 @@ Thumbs.db
 # ─────────────────────────
 *.pem
 .ipynb_checkpoints/
+
+# Project documentation
+RooView.md
